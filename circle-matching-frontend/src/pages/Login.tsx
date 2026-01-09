@@ -1,8 +1,12 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,16 +22,20 @@ export default function Login() {
     const data = await response.json();
 
     if (response.ok) {
+      // 🔥 トークン保存
       localStorage.setItem("token", data.access_token);
-      alert("ログイン成功！");
+
+      // 🔥 ログイン後の遷移
+      navigate("/Me"); // ← ここを追加
     } else {
-      alert(data.detail || "ログイン失敗");
+      setError(data.detail || "ログイン失敗");
     }
   };
 
   return (
     <div>
       <h2>ログイン</h2>
+
       <form onSubmit={handleLogin}>
         <input
           type="email"
@@ -35,14 +43,18 @@ export default function Login() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
+
         <input
           type="password"
           placeholder="パスワード"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+
         <button type="submit">ログイン</button>
       </form>
+
+      {error && <p style={{ color: "red" }}>{error}</p>}
     </div>
   );
 }
