@@ -11,24 +11,28 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const response = await fetch("http://localhost:8000/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const response = await fetch("http://localhost:8001/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          username: email, // ← FastAPI は username を要求
+          password: password,
+        }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (response.ok) {
-      // 🔥 トークン保存
-      localStorage.setItem("token", data.access_token);
-
-      // 🔥 ログイン後の遷移
-      navigate("/Me"); // ← ここを追加
-    } else {
-      setError(data.detail || "ログイン失敗");
+      if (response.ok) {
+        localStorage.setItem("token", data.access_token);
+        navigate("/me");
+      } else {
+        setError(data.detail || "ログイン失敗");
+      }
+    } catch (err) {
+      setError("サーバーに接続できません");
     }
   };
 
