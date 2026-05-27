@@ -126,6 +126,24 @@ class CircleMemberPermission(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class CircleAdminActionLog(Base):
+    __tablename__ = "circle_admin_action_logs"
+    __table_args__ = (
+        Index("ix_circle_admin_action_logs_circle_created", "circle_id", "created_at"),
+        Index("ix_circle_admin_action_logs_actor", "actor_user_id"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    circle_id = Column(UUID(as_uuid=True), ForeignKey("circles.id", ondelete="CASCADE"), nullable=False)
+    actor_user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    permission_key = Column(String, nullable=False)
+    target_type = Column(String, nullable=False)
+    target_id = Column(UUID(as_uuid=True))
+    summary = Column(String, nullable=False)
+    details = Column(Text)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 # =====================================================================
 # 3. 定期ライブ
 # =====================================================================

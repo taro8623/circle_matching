@@ -93,7 +93,7 @@ export default function CirclePermissionSettings() {
       <button onClick={() => navigate(`/circles/${circleId}`)}>戻る</button>
       <h1 style={styles.h1}>権限付与設定</h1>
       <p style={styles.meta}>
-        ライブ運営まわりの権限をタスクごとに個別付与できます。代表者は常に全権限を持ちます。
+        ライブ運営と管理者操作ログの閲覧権限を、タスクごとに個別付与できます。代表者は常に全権限を持ちます。
       </p>
       {error && <p style={styles.error}>{error}</p>}
 

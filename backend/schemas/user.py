@@ -51,3 +51,22 @@ class CircleParticipationHistoryResponse(BaseModel):
     circle_name: str
     upcoming: List[ParticipationHistoryItemResponse] = []
     history: List[ParticipationHistoryItemResponse] = []
+
+
+class ParticipationPlanItemResponse(BaseModel):
+    live_event_id: Optional[UUID] = None
+    live_event_name: Optional[str] = None
+    live_event_date: Optional[date] = None
+    song_id: UUID
+    song_title: str
+    artist: str
+    parts: List[str] = []
+    planned_month: Optional[str] = None
+
+
+class CircleParticipationPlansResponse(BaseModel):
+    circle_id: UUID
+    circle_name: str
+    approved: List[ParticipationPlanItemResponse] = []
+    applied: List[ParticipationPlanItemResponse] = []
+    planned: List[ParticipationPlanItemResponse] = []

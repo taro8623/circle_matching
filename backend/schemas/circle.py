@@ -105,3 +105,16 @@ class CirclePermissionSettingsResponse(BaseModel):
 class CirclePermissionUpdateRequest(BaseModel):
     user_id: UUID
     enabled: bool
+
+
+class CircleAdminActionLogResponse(BaseModel):
+    id: UUID
+    actor_user_id: UUID
+    actor_user_name: str
+    permission_key: str
+    permission_label: str
+    target_type: str
+    target_id: Optional[UUID] = None
+    summary: str
+    details: Optional[str] = None
+    created_at: str

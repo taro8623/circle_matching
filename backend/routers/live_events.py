@@ -27,6 +27,7 @@ from schemas.live_event import (
     UserLiveEventStatusUpdateRequest, UserLiveEventStatusResponse,
     LiveEventSongSummaryResponse,
 )
+from services.circle_admin_logs import add_circle_admin_action_log
 
 
 router = APIRouter(tags=["live_events"])
@@ -267,6 +268,17 @@ def create_live_event(
         created_by=current_user.id,
     )
     db.add(event)
+    db.flush()
+    add_circle_admin_action_log(
+        db,
+        circle_id=circle_id,
+        actor_user_id=current_user.id,
+        permission_key="create_live_event",
+        target_type="live_event",
+        target_id=event.id,
+        summary=f"ライブ「{event.name}」を作成",
+        details=f"受付: {event.entry_status} / 状態: {event.lifecycle_status}",
+    )
     db.commit()
     db.refresh(event)
     return _build_live_event_response(db, event, current_user)
@@ -332,7 +344,19 @@ def update_live_event(
             required_permission,
             "ライブ受付を変更する権限が必要です",
         )
+        previous_status = event.entry_status
         event.entry_status = request.entry_status
+        if previous_status != event.entry_status:
+            add_circle_admin_action_log(
+                db,
+                circle_id=event.circle_id,
+                actor_user_id=current_user.id,
+                permission_key=required_permission,
+                target_type="live_event",
+                target_id=event.id,
+                summary=f"ライブ「{event.name}」の受付を変更",
+                details=f"受付: {previous_status} -> {event.entry_status}",
+            )
     if request.lifecycle_status is not None:
         if request.lifecycle_status not in ("scheduled", "completed", "cancelled"):
             raise HTTPException(
@@ -351,9 +375,21 @@ def update_live_event(
             required_permission,
             "ライブ状態を変更する権限が必要です",
         )
+        previous_status = event.lifecycle_status
         event.lifecycle_status = request.lifecycle_status
         if request.lifecycle_status in ("completed", "cancelled"):
             event.entry_status = "closed"
+        if previous_status != event.lifecycle_status:
+            add_circle_admin_action_log(
+                db,
+                circle_id=event.circle_id,
+                actor_user_id=current_user.id,
+                permission_key=required_permission,
+                target_type="live_event",
+                target_id=event.id,
+                summary=f"ライブ「{event.name}」の状態を変更",
+                details=f"状態: {previous_status} -> {event.lifecycle_status}",
+            )
 
     live_events_path = f"/circles/{event.circle_id}/live-events"
     if previous_entry_status != "open" and event.entry_status == "open":

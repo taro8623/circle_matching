@@ -8,11 +8,12 @@ from sqlalchemy.orm import Session
 
 from deps import get_db, get_current_user, require_circle_member
 from models import (
-    User, Circle, CircleMember, CircleMemberPermission, SongRequest, SongRecruitingPart, UserPart,
+    User, Circle, CircleMember, CircleMemberPermission, CircleAdminActionLog, SongRequest, SongRecruitingPart, UserPart,
 )
 from schemas.circle import (
     CircleCreate, CircleJoinRequest, CircleDetailResponse,
     MemberResponse, SongSummary,
+    CircleAdminActionLogResponse,
     CirclePermissionAssigneeResponse,
     CirclePermissionItemResponse,
     CirclePermissionMemberSummaryResponse,
@@ -27,9 +28,13 @@ from services.circle_permissions import (
     list_circle_permission_assignees,
     require_circle_permission,
 )
+from services.circle_admin_logs import add_circle_admin_action_log
 
 
 router = APIRouter(prefix="/circles", tags=["circles"])
+PERMISSION_LABELS = {
+    item["key"]: item["label"] for item in CIRCLE_PERMISSION_DEFINITIONS
+}
 
 
 @router.post("")
@@ -300,10 +305,72 @@ def update_circle_permission(
                     granted_by=current_user.id,
                 )
             )
+            target_user = db.query(User).filter(User.id == request.user_id).first()
+            add_circle_admin_action_log(
+                db,
+                circle_id=circle_id,
+                actor_user_id=current_user.id,
+                permission_key="grant_circle_permissions",
+                target_type="circle_permission",
+                target_id=request.user_id,
+                summary=f"{target_user.name} に「{PERMISSION_LABELS[permission_key]}」を付与",
+                details=f"付与された権限: {PERMISSION_LABELS[permission_key]}",
+            )
             db.commit()
         return {"message": "権限を付与しました", "enabled": True}
 
     if grant:
+        target_user = db.query(User).filter(User.id == request.user_id).first()
+        add_circle_admin_action_log(
+            db,
+            circle_id=circle_id,
+            actor_user_id=current_user.id,
+            permission_key="revoke_circle_permissions",
+            target_type="circle_permission",
+            target_id=request.user_id,
+            summary=f"{target_user.name} から「{PERMISSION_LABELS[permission_key]}」を解除",
+            details=f"解除された権限: {PERMISSION_LABELS[permission_key]}",
+        )
         db.delete(grant)
         db.commit()
     return {"message": "権限を外しました", "enabled": False}
+
+
+@router.get("/{circle_id}/admin-action-logs", response_model=List[CircleAdminActionLogResponse])
+def list_circle_admin_action_logs(
+    circle_id: UUID = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_circle_member(db, circle_id, current_user.id)
+    require_circle_permission(
+        db,
+        circle_id,
+        current_user.id,
+        "view_admin_action_logs",
+        "管理者操作ログを閲覧する権限がありません",
+    )
+
+    rows = (
+        db.query(CircleAdminActionLog, User)
+        .join(User, CircleAdminActionLog.actor_user_id == User.id)
+        .filter(CircleAdminActionLog.circle_id == circle_id)
+        .order_by(CircleAdminActionLog.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    return [
+        CircleAdminActionLogResponse(
+            id=log.id,
+            actor_user_id=user.id,
+            actor_user_name=user.name,
+            permission_key=log.permission_key,
+            permission_label=PERMISSION_LABELS.get(log.permission_key, log.permission_key),
+            target_type=log.target_type,
+            target_id=log.target_id,
+            summary=log.summary,
+            details=log.details,
+            created_at=log.created_at.isoformat(),
+        )
+        for log, user in rows
+    ]

@@ -14,6 +14,7 @@ from models import (
 from schemas.user import (
     MeResponse, UserPartsUpdateRequest, CircleSummaryResponse, ProfileUpdateRequest,
     CircleParticipationHistoryResponse, ParticipationHistoryItemResponse,
+    CircleParticipationPlansResponse, ParticipationPlanItemResponse,
 )
 
 
@@ -204,4 +205,151 @@ def get_my_circle_participation_history(
         circle_name=circle.name,
         upcoming=[to_item(row) for row in upcoming_rows],
         history=[to_item(row) for row in history_rows],
+    )
+
+
+@router.get("/circles/{circle_id}/participation-plans", response_model=CircleParticipationPlansResponse)
+def get_my_circle_participation_plans(
+    circle_id: UUID = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    circle = db.query(Circle).filter(Circle.id == circle_id).first()
+    if not circle:
+        raise HTTPException(status_code=404, detail="Circle not found")
+    require_circle_member(db, circle_id, current_user.id)
+
+    accepted_entries = (
+        db.query(SongPartEntry, SongRequest)
+        .join(SongRequest, SongPartEntry.song_request_id == SongRequest.id)
+        .filter(
+            SongPartEntry.user_id == current_user.id,
+            SongPartEntry.status == "accepted",
+            SongRequest.circle_id == circle_id,
+            SongRequest.status.in_(["ready", "recruiting"]),
+        )
+        .all()
+    )
+
+    approved_map: dict[tuple[UUID, UUID], dict] = {}
+    applied_map: dict[tuple[UUID, UUID], dict] = {}
+    planned_map: dict[UUID, dict] = {}
+
+    for entry, song in accepted_entries:
+        scheduled_applications = (
+            db.query(SongLiveApplication, LiveEvent)
+            .join(LiveEvent, SongLiveApplication.live_event_id == LiveEvent.id)
+            .filter(
+                SongLiveApplication.song_request_id == song.id,
+                SongLiveApplication.status.in_(["approved", "applied"]),
+                LiveEvent.circle_id == circle_id,
+                LiveEvent.lifecycle_status == "scheduled",
+            )
+            .all()
+        )
+
+        approved_apps = [
+            (application, live_event)
+            for application, live_event in scheduled_applications
+            if application.status == "approved"
+        ]
+        applied_apps = [
+            (application, live_event)
+            for application, live_event in scheduled_applications
+            if application.status == "applied"
+        ]
+
+        if approved_apps:
+            for _, live_event in approved_apps:
+                key = (live_event.id, song.id)
+                if key not in approved_map:
+                    approved_map[key] = {
+                        "live_event_id": live_event.id,
+                        "live_event_name": live_event.name,
+                        "live_event_date": live_event.event_date,
+                        "song_id": song.id,
+                        "song_title": song.title,
+                        "artist": song.artist,
+                        "parts": [],
+                        "planned_month": song.planned_month,
+                    }
+                if entry.part not in approved_map[key]["parts"]:
+                    approved_map[key]["parts"].append(entry.part)
+            continue
+
+        if applied_apps:
+            for _, live_event in applied_apps:
+                key = (live_event.id, song.id)
+                if key not in applied_map:
+                    applied_map[key] = {
+                        "live_event_id": live_event.id,
+                        "live_event_name": live_event.name,
+                        "live_event_date": live_event.event_date,
+                        "song_id": song.id,
+                        "song_title": song.title,
+                        "artist": song.artist,
+                        "parts": [],
+                        "planned_month": song.planned_month,
+                    }
+                if entry.part not in applied_map[key]["parts"]:
+                    applied_map[key]["parts"].append(entry.part)
+            continue
+
+        if song.status == "ready":
+            if song.id not in planned_map:
+                planned_map[song.id] = {
+                    "song_id": song.id,
+                    "song_title": song.title,
+                    "artist": song.artist,
+                    "parts": [],
+                    "planned_month": song.planned_month,
+                }
+            if entry.part not in planned_map[song.id]["parts"]:
+                planned_map[song.id]["parts"].append(entry.part)
+
+    def to_plan_item(row: dict) -> ParticipationPlanItemResponse:
+        return ParticipationPlanItemResponse(
+            live_event_id=row.get("live_event_id"),
+            live_event_name=row.get("live_event_name"),
+            live_event_date=row.get("live_event_date"),
+            song_id=row["song_id"],
+            song_title=row["song_title"],
+            artist=row["artist"],
+            parts=sorted(row["parts"]),
+            planned_month=row.get("planned_month"),
+        )
+
+    approved_rows = list(approved_map.values())
+    approved_rows.sort(
+        key=lambda row: (
+            row["live_event_date"] is None,
+            row["live_event_date"],
+            row["live_event_name"] or "",
+            row["song_title"],
+        )
+    )
+    applied_rows = list(applied_map.values())
+    applied_rows.sort(
+        key=lambda row: (
+            row["live_event_date"] is None,
+            row["live_event_date"],
+            row["live_event_name"] or "",
+            row["song_title"],
+        )
+    )
+    planned_rows = list(planned_map.values())
+    planned_rows.sort(
+        key=lambda row: (
+            row["planned_month"] is None,
+            row["planned_month"] or "",
+            row["song_title"],
+        )
+    )
+
+    return CircleParticipationPlansResponse(
+        circle_id=circle.id,
+        circle_name=circle.name,
+        approved=[to_plan_item(row) for row in approved_rows],
+        applied=[to_plan_item(row) for row in applied_rows],
+        planned=[to_plan_item(row) for row in planned_rows],
     )

@@ -20,6 +20,7 @@ from schemas.live_event import (
     SongLiveApplicationCreateRequest, SongLiveApplicationDecisionRequest,
     SongLiveApplicationResponse,
 )
+from services.circle_admin_logs import add_circle_admin_action_log
 
 
 router = APIRouter(tags=["live_applications"])
@@ -138,6 +139,16 @@ def decide_live_application(
 
     song = db.query(SongRequest).filter(SongRequest.id == app_row.song_request_id).first()
     result_label = "承認" if request.status == "approved" else "却下"
+    add_circle_admin_action_log(
+        db,
+        circle_id=event.circle_id,
+        actor_user_id=current_user.id,
+        permission_key=required_permission,
+        target_type="live_application",
+        target_id=app_row.id,
+        summary=f"「{song.title}」のライブ申請を{result_label}",
+        details=f"ライブ: {event.name}",
+    )
     title = f"ライブ出演申請が{result_label}されました"
     body = f"{event.name} への「{song.title}」の出演申請が{result_label}されました。"
     notification_type = (

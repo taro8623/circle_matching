@@ -58,6 +58,11 @@ CIRCLE_PERMISSION_DEFINITIONS = [
         "label": "権限を外す",
         "description": "他メンバーから個別権限を外せます。",
     },
+    {
+        "key": "view_admin_action_logs",
+        "label": "管理者操作ログを閲覧",
+        "description": "管理権限を持つメンバーの操作履歴を確認できます。",
+    },
 ]
 
 ALL_CIRCLE_PERMISSION_KEYS = {
