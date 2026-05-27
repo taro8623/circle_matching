@@ -37,6 +37,7 @@ export default function CirclePermissionSettings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busyKey, setBusyKey] = useState("");
+  const [selectedMembers, setSelectedMembers] = useState<Record<string, string>>({});
 
   const reload = async () => {
     if (!circleId) return;
@@ -79,6 +80,10 @@ export default function CirclePermissionSettings() {
     }
   };
 
+  const setSelectedMember = (permissionKey: string, userId: string) => {
+    setSelectedMembers((current) => ({ ...current, [permissionKey]: userId }));
+  };
+
   if (loading) return <div style={styles.page}>読み込み中...</div>;
   if (error && !data) return <div style={styles.page}><p style={styles.error}>{error}</p></div>;
   if (!data) return null;
@@ -97,6 +102,10 @@ export default function CirclePermissionSettings() {
           const assignedIds = new Set(permission.assigned_users.map((user) => user.user_id));
           const canGrant = currentUserPermissions.has("grant_circle_permissions");
           const canRevoke = currentUserPermissions.has("revoke_circle_permissions");
+          const selectableMembers = data.members.filter(
+            (member) => member.role !== "owner" && !assignedIds.has(member.user_id)
+          );
+          const selectedMemberId = selectedMembers[permission.key] || "";
 
           return (
             <section key={permission.key} style={styles.card}>
@@ -108,59 +117,63 @@ export default function CirclePermissionSettings() {
                 {permission.assigned_users.length === 0 ? (
                   <p style={styles.empty}>まだいません</p>
                 ) : (
-                  <div style={styles.chipRow}>
+                  <div style={styles.assignedList}>
                     {permission.assigned_users.map((user) => (
-                      <span key={user.user_id} style={styles.chip}>
-                        {user.user_name}
-                        {user.is_owner ? "（代表）" : user.is_explicit ? "" : "（自動）"}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div style={styles.sectionLabel}>メンバーごとの設定</div>
-              <div style={styles.memberList}>
-                {data.members.map((member) => {
-                  const assigned = assignedIds.has(member.user_id) || member.role === "owner";
-                  const isOwner = member.role === "owner";
-                  const actionKey = `${permission.key}:${member.user_id}`;
-
-                  return (
-                    <div key={member.user_id} style={styles.memberRow}>
-                      <div>
-                        <strong>{member.user_name}</strong>
-                        {isOwner && <span style={styles.ownerLabel}>代表</span>}
-                      </div>
-                      <div style={styles.memberActions}>
-                        <span style={assigned ? styles.enabledText : styles.disabledText}>
-                          {assigned ? "付与中" : "未付与"}
+                      <div key={user.user_id} style={styles.assignedRow}>
+                        <span style={styles.chip}>
+                          {user.user_name}
+                          {user.is_owner ? "（代表）" : ""}
                         </span>
-                        {!isOwner && !assigned && canGrant && (
-                          <button
-                            type="button"
-                            style={styles.primaryButton}
-                            disabled={busyKey === actionKey}
-                            onClick={() => togglePermission(permission.key, member.user_id, true)}
-                          >
-                            与える
-                          </button>
-                        )}
-                        {!isOwner && assigned && canRevoke && (
+                        {!user.is_owner && user.is_explicit && canRevoke && (
                           <button
                             type="button"
                             style={styles.secondaryButton}
-                            disabled={busyKey === actionKey}
-                            onClick={() => togglePermission(permission.key, member.user_id, false)}
+                            disabled={busyKey === `${permission.key}:${user.user_id}`}
+                            onClick={() => togglePermission(permission.key, user.user_id, false)}
                           >
                             外す
                           </button>
                         )}
                       </div>
-                    </div>
-                  );
-                })}
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {canGrant && (
+                <div style={styles.grantSection}>
+                  <div style={styles.sectionLabel}>この権限を付与する</div>
+                  {selectableMembers.length === 0 ? (
+                    <p style={styles.empty}>付与できるメンバーはもういません</p>
+                  ) : (
+                    <div style={styles.grantControls}>
+                      <select
+                        value={selectedMemberId}
+                        onChange={(e) => setSelectedMember(permission.key, e.target.value)}
+                        style={styles.select}
+                      >
+                        <option value="">メンバーを選択</option>
+                        {selectableMembers.map((member) => (
+                          <option key={member.user_id} value={member.user_id}>
+                            {member.user_name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        style={styles.primaryButton}
+                        disabled={!selectedMemberId || busyKey === `${permission.key}:${selectedMemberId}`}
+                        onClick={() => {
+                          if (!selectedMemberId) return;
+                          togglePermission(permission.key, selectedMemberId, true);
+                        }}
+                      >
+                        与える
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           );
         })}
@@ -179,7 +192,8 @@ const styles: Record<string, React.CSSProperties> = {
   card: { border: "1px solid #dbeafe", borderRadius: 12, padding: 16, background: "#fff" },
   currentSection: { marginTop: 12, marginBottom: 16 },
   sectionLabel: { fontSize: 12, fontWeight: "bold", color: "#475569", marginBottom: 8 },
-  chipRow: { display: "flex", flexWrap: "wrap", gap: 8 },
+  assignedList: { display: "grid", gap: 8 },
+  assignedRow: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" },
   chip: {
     borderRadius: 999,
     padding: "4px 10px",
@@ -188,26 +202,16 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#1d4ed8",
     fontSize: 13,
   },
-  memberList: { display: "grid", gap: 10 },
-  memberRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 12,
-    alignItems: "center",
-    padding: "12px 0",
-    borderTop: "1px solid #e2e8f0",
+  grantSection: { marginTop: 16, paddingTop: 16, borderTop: "1px solid #e2e8f0" },
+  grantControls: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" },
+  select: {
+    minWidth: 220,
+    border: "1px solid #cbd5e1",
+    borderRadius: 6,
+    padding: "8px 12px",
+    background: "#fff",
+    color: "#0f172a",
   },
-  memberActions: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  ownerLabel: {
-    marginLeft: 8,
-    fontSize: 12,
-    color: "#991b1b",
-    background: "#fee2e2",
-    borderRadius: 999,
-    padding: "2px 8px",
-  },
-  enabledText: { color: "#166534", fontWeight: "bold", fontSize: 13 },
-  disabledText: { color: "#64748b", fontSize: 13 },
   primaryButton: {
     border: "1px solid #2563eb",
     borderRadius: 6,
