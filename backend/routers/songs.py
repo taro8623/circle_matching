@@ -1,10 +1,14 @@
 """曲起票・更新・確定/取消・自分向け一覧"""
 
+import json
+from urllib.error import URLError
+from urllib.parse import urlencode
+from urllib.request import urlopen
 from datetime import datetime
 from typing import List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
 from deps import get_db, get_current_user, require_circle_member
@@ -13,13 +17,51 @@ from models import (
 )
 from schemas.song import (
     SongCreateRequest, SongUpdateRequest, SongStatusUpdateRequest,
-    SongItemResponse, CircleSongsForMeResponse,
+    SongItemResponse, CircleSongsForMeResponse, PublicSongSearchResponse,
+    PublicSongSearchItemResponse,
 )
 from services.song_builder import build_song_item, ensure_chat_room, add_chat_participant
 from services.circle_permissions import get_effective_circle_permission_keys
 
 
 router = APIRouter(tags=["songs"])
+
+
+@router.get("/songs/public-search", response_model=PublicSongSearchResponse)
+def search_public_songs(
+    q: str = Query(..., min_length=1),
+    current_user: User = Depends(get_current_user),
+):
+    query = q.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="検索キーワードを入力してください")
+
+    params = urlencode({
+        "term": query,
+        "entity": "song",
+        "limit": 12,
+        "country": "JP",
+    })
+    url = f"https://itunes.apple.com/search?{params}"
+    try:
+        with urlopen(url, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except URLError:
+        raise HTTPException(status_code=502, detail="曲データの検索に失敗しました")
+
+    results = [
+        PublicSongSearchItemResponse(
+            track_name=item.get("trackName", ""),
+            artist_name=item.get("artistName", ""),
+            collection_name=item.get("collectionName"),
+            artwork_url=item.get("artworkUrl100"),
+            preview_url=item.get("previewUrl"),
+            track_view_url=item.get("trackViewUrl"),
+        )
+        for item in payload.get("results", [])
+        if item.get("trackName") and item.get("artistName")
+    ]
+    return PublicSongSearchResponse(query=query, results=results)
 
 
 # ------------------- 曲起票 -------------------

@@ -126,6 +126,20 @@ class CircleSongsForMeResponse(BaseModel):
     matching_recruiting_songs: List[SongItemResponse] = []
 
 
+class PublicSongSearchItemResponse(BaseModel):
+    track_name: str
+    artist_name: str
+    collection_name: Optional[str] = None
+    artwork_url: Optional[str] = None
+    preview_url: Optional[str] = None
+    track_view_url: Optional[str] = None
+
+
+class PublicSongSearchResponse(BaseModel):
+    query: str
+    results: List[PublicSongSearchItemResponse] = []
+
+
 # -------- 応募 / オファー --------
 class ApplicationCreateRequest(BaseModel):
     """応募 (user→song)"""

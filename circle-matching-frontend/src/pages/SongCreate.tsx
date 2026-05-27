@@ -20,6 +20,18 @@ type PartSetup = {
   slots: PartSlot[];
   isCustom: boolean;
 };
+type PublicSongSearchItem = {
+  track_name: string;
+  artist_name: string;
+  collection_name?: string | null;
+  artwork_url?: string | null;
+  preview_url?: string | null;
+  track_view_url?: string | null;
+};
+type PublicSongSearchResponse = {
+  query: string;
+  results: PublicSongSearchItem[];
+};
 
 const MODE_OPTIONS: Array<{ value: PartMode; label: string }> = [
   { value: "recruiting", label: "募集中" },
@@ -52,6 +64,9 @@ export default function SongCreate() {
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [referenceUrl, setReferenceUrl] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [searchResults, setSearchResults] = useState<PublicSongSearchItem[]>([]);
+  const [searchingSongs, setSearchingSongs] = useState(false);
   const [memo, setMemo] = useState("");
   const [timingMemo, setTimingMemo] = useState("");
   const [customPart, setCustomPart] = useState("");
@@ -256,12 +271,77 @@ export default function SongCreate() {
     }
   };
 
+  const searchSongs = async () => {
+    const query = searchKeyword.trim();
+    if (!query) {
+      setError("曲検索キーワードを入力してください");
+      return;
+    }
+    setSearchingSongs(true);
+    setError("");
+    try {
+      const response = await api.get<PublicSongSearchResponse>(`/songs/public-search?q=${encodeURIComponent(query)}`);
+      setSearchResults(response.results);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "曲検索に失敗しました");
+    } finally {
+      setSearchingSongs(false);
+    }
+  };
+
+  const applySearchResult = (item: PublicSongSearchItem) => {
+    setTitle(item.track_name);
+    setArtist(item.artist_name);
+    setReferenceUrl(item.track_view_url || item.preview_url || "");
+    setError("");
+  };
+
   return (
     <main style={styles.page}>
       <button type="button" onClick={() => navigate(`/circles/${circleId}`)}>戻る</button>
       <h2 style={styles.title}>曲起票</h2>
 
       <form onSubmit={handleSubmit} style={styles.form}>
+        <section style={styles.searchSection}>
+          <div>
+            <h3 style={styles.sectionTitle}>公開データベースから曲を検索</h3>
+            <p style={styles.help}>曲名やアーティスト名で検索して、そのまま曲名・アーティスト名・参考URLを入力できます。</p>
+          </div>
+          <div style={styles.searchRow}>
+            <input
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="例: 天体観測 / BUMP OF CHICKEN"
+              style={styles.input}
+            />
+            <button type="button" onClick={searchSongs} disabled={searchingSongs || !searchKeyword.trim()}>
+              {searchingSongs ? "検索中..." : "検索"}
+            </button>
+          </div>
+          {searchResults.length > 0 && (
+            <div style={styles.searchResultList}>
+              {searchResults.map((item) => (
+                <button
+                  key={`${item.track_name}-${item.artist_name}-${item.track_view_url || item.preview_url || ""}`}
+                  type="button"
+                  style={styles.searchResultCard}
+                  onClick={() => applySearchResult(item)}
+                >
+                  {item.artwork_url && (
+                    <img src={item.artwork_url} alt="" style={styles.artwork} />
+                  )}
+                  <div style={styles.searchResultBody}>
+                    <strong>{item.track_name}</strong>
+                    <p style={styles.searchMeta}>{item.artist_name}</p>
+                    {item.collection_name && <p style={styles.searchMeta}>収録: {item.collection_name}</p>}
+                  </div>
+                  <span style={styles.selectChip}>この曲を使う</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
         <label style={styles.label}>
           曲名
           <input value={title} onChange={(e) => setTitle(e.target.value)} style={styles.input} required />
@@ -446,6 +526,41 @@ const styles: Record<string, React.CSSProperties> = {
   page: { width: "min(900px, calc(100vw - 32px))", margin: "32px auto", textAlign: "left" },
   title: { margin: "20px 0", fontSize: 28 },
   form: { display: "grid", gap: 18 },
+  searchSection: {
+    display: "grid",
+    gap: 12,
+    border: "1px solid #dbeafe",
+    borderRadius: 12,
+    padding: 16,
+    background: "#f8fbff",
+  },
+  searchRow: { display: "grid", gridTemplateColumns: "1fr auto", gap: 10 },
+  searchResultList: { display: "grid", gap: 10 },
+  searchResultCard: {
+    display: "grid",
+    gridTemplateColumns: "72px minmax(0, 1fr) auto",
+    gap: 12,
+    alignItems: "center",
+    padding: 12,
+    border: "1px solid #dbeafe",
+    borderRadius: 10,
+    background: "#fff",
+    textAlign: "left",
+    cursor: "pointer",
+  },
+  searchResultBody: { minWidth: 0 },
+  searchMeta: { margin: "4px 0 0", color: "#4b5563", fontSize: 14 },
+  artwork: { width: 72, height: 72, objectFit: "cover", borderRadius: 8, background: "#e5e7eb" },
+  selectChip: {
+    border: "1px solid #bfdbfe",
+    borderRadius: 999,
+    padding: "6px 10px",
+    color: "#1d4ed8",
+    background: "#eff6ff",
+    fontSize: 12,
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+  },
   section: { display: "grid", gap: 12 },
   sectionHeader: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start" },
   label: { display: "grid", gap: 6, fontWeight: 600 },
