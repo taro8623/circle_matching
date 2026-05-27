@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from database import SessionLocal
 from models import User, CircleMember
+from services.circle_permissions import require_circle_permission
 
 
 # -------------------------
@@ -96,9 +97,12 @@ def require_circle_member(db: Session, circle_id: UUID, user_id: UUID) -> Circle
     return membership
 
 
-def require_circle_admin(db: Session, circle_id: UUID, user_id: UUID) -> CircleMember:
-    """サークル管理者(admin/owner) チェック"""
-    membership = require_circle_member(db, circle_id, user_id)
-    if membership.role not in ("admin", "owner"):
-        raise HTTPException(status_code=403, detail="サークル管理者権限が必要です")
-    return membership
+def require_circle_permission_for_action(
+    db: Session,
+    circle_id: UUID,
+    user_id: UUID,
+    permission_key: str,
+    detail: str | None = None,
+) -> None:
+    require_circle_member(db, circle_id, user_id)
+    require_circle_permission(db, circle_id, user_id, permission_key, detail)

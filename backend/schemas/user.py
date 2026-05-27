@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
@@ -33,3 +34,20 @@ class CircleSummaryResponse(BaseModel):
     id: UUID
     name: str
     description: Optional[str] = None
+
+
+class ParticipationHistoryItemResponse(BaseModel):
+    live_event_id: UUID
+    live_event_name: str
+    live_event_date: Optional[date] = None
+    song_id: UUID
+    song_title: str
+    artist: str
+    parts: List[str] = []
+
+
+class CircleParticipationHistoryResponse(BaseModel):
+    circle_id: UUID
+    circle_name: str
+    upcoming: List[ParticipationHistoryItemResponse] = []
+    history: List[ParticipationHistoryItemResponse] = []

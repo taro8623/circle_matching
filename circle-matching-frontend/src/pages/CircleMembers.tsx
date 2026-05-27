@@ -6,6 +6,7 @@ type Member = {
   id: string;
   name: string;
   parts: string[];
+  bio?: string | null;
   role?: string;
 };
 
@@ -68,7 +69,6 @@ export default function CircleMembers() {
               <div style={styles.memberHeader}>
                 <span style={styles.name}>{m.name}</span>
                 {m.role === "owner" && <span style={styles.roleBadge}>代表</span>}
-                {m.role === "admin" && <span style={styles.roleBadge}>管理者</span>}
               </div>
               <div style={styles.partContainer}>
                 {m.parts.length > 0 ? (
@@ -78,6 +78,10 @@ export default function CircleMembers() {
                 ) : (
                   <span style={styles.noPart}>パート未設定</span>
                 )}
+              </div>
+              <div style={styles.bioSection}>
+                <div style={styles.bioLabel}>自己紹介</div>
+                <p style={styles.bioText}>{m.bio?.trim() || "自己紹介はまだ登録されていません"}</p>
               </div>
             </div>
           ))
@@ -99,6 +103,9 @@ const styles: Record<string, React.CSSProperties> = {
   name: { fontWeight: "bold", fontSize: 18 },
   roleBadge: { fontSize: 11, background: "#fee2e2", color: "#991b1b", padding: "2px 6px", borderRadius: 4 },
   partContainer: { display: "flex", flexWrap: "wrap", gap: 6 },
+  bioSection: { marginTop: 14, paddingTop: 12, borderTop: "1px solid #f1f5f9" },
+  bioLabel: { fontSize: 12, fontWeight: "bold", color: "#64748b", marginBottom: 6 },
+  bioText: { margin: 0, fontSize: 14, color: "#334155", whiteSpace: "pre-wrap", lineHeight: 1.5 },
   partBadge: { fontSize: 12, background: "#eff6ff", color: "#1d4ed8", border: "1px solid #bfdbfe", padding: "2px 8px", borderRadius: 999 },
   noPart: { fontSize: 13, color: "#9ca3af", fontStyle: "italic" },
   error: { color: "#dc2626" },

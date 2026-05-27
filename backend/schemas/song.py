@@ -114,7 +114,7 @@ class CircleSongsForMeResponse(BaseModel):
     circle_id: UUID
     circle_name: str
     current_user_id: UUID
-    current_user_role: str
+    current_user_permissions: List[str] = []
     current_user_parts: List[str]
     own_songs: List[SongItemResponse] = []
     applicable_songs: List[SongItemResponse] = []        # 応募できる(募集中 & 未応募)

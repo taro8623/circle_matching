@@ -16,6 +16,7 @@ from schemas.song import (
     SongItemResponse, CircleSongsForMeResponse,
 )
 from services.song_builder import build_song_item, ensure_chat_room, add_chat_participant
+from services.circle_permissions import get_effective_circle_permission_keys
 
 
 router = APIRouter(tags=["songs"])
@@ -391,7 +392,7 @@ def get_circle_songs_for_me(
         circle_id=circle.id,
         circle_name=circle.name,
         current_user_id=current_user.id,
-        current_user_role=membership.role,
+        current_user_permissions=get_effective_circle_permission_keys(db, circle_id, current_user.id),
         current_user_parts=current_user_parts,
         own_songs=own_songs,
         applicable_songs=applicable_songs,

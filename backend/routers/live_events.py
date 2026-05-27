@@ -15,11 +15,12 @@ from sqlalchemy.orm import Session
 
 from database import has_table
 from deps import (
-    get_db, get_current_user, require_circle_member, require_circle_admin,
+    get_db, get_current_user, require_circle_member, require_circle_permission_for_action,
 )
 from models import (
-    User, Circle, LiveEvent, UserLiveEventStatus,
+    User, Circle, CircleMember, LiveEvent, UserLiveEventStatus,
     SongLiveApplication, SongRequest, SongRecruitingPart, SongPartEntry, SongExternalMember,
+    Notification,
 )
 from schemas.live_event import (
     LiveEventCreateRequest, LiveEventUpdateRequest, LiveEventResponse,
@@ -31,7 +32,137 @@ from schemas.live_event import (
 router = APIRouter(tags=["live_events"])
 
 
-def _build_live_event_response(db: Session, event: LiveEvent) -> LiveEventResponse:
+def _notify_circle_members(
+    db: Session,
+    *,
+    circle_id: UUID,
+    actor_user_id: UUID,
+    notification_type: str,
+    title: str,
+    body: str,
+    link_path: str,
+) -> None:
+    member_ids = [
+        user_id
+        for user_id, in (
+            db.query(CircleMember.user_id)
+            .filter(
+                CircleMember.circle_id == circle_id,
+                CircleMember.left_at.is_(None),
+                CircleMember.user_id != actor_user_id,
+            )
+            .all()
+        )
+    ]
+    for member_id in member_ids:
+        db.add(Notification(
+            user_id=member_id,
+            type=notification_type,
+            title=title,
+            body=body,
+            link_path=link_path,
+        ))
+
+
+def _event_month_key(event: LiveEvent) -> str | None:
+    if not event.event_date:
+        return None
+    return event.event_date.strftime("%Y-%m")
+
+
+def _build_current_user_auto_labels(
+    db: Session,
+    event: LiveEvent,
+    current_user: User,
+) -> list[str]:
+    accepted_song_ids = [
+        song_id
+        for song_id, in (
+            db.query(SongPartEntry.song_request_id)
+            .join(SongRequest, SongPartEntry.song_request_id == SongRequest.id)
+            .filter(
+                SongPartEntry.user_id == current_user.id,
+                SongPartEntry.status == "accepted",
+                SongRequest.circle_id == event.circle_id,
+            )
+            .distinct()
+            .all()
+        )
+    ]
+    if not accepted_song_ids:
+        return []
+
+    if event.lifecycle_status != "scheduled":
+        return []
+
+    month_key = _event_month_key(event)
+    if month_key:
+        target_event_ids = [
+            live_event.id
+            for live_event in db.query(LiveEvent).filter(LiveEvent.circle_id == event.circle_id).all()
+            if (
+                live_event.lifecycle_status == "scheduled"
+                and live_event.event_date
+                and live_event.event_date.strftime("%Y-%m") == month_key
+            )
+        ]
+    else:
+        target_event_ids = [event.id]
+
+    approved_song_ids: set[UUID] = set()
+    applied_song_ids: set[UUID] = set()
+    if target_event_ids:
+        applications = (
+            db.query(SongLiveApplication.song_request_id, SongLiveApplication.status)
+            .filter(
+                SongLiveApplication.song_request_id.in_(accepted_song_ids),
+                SongLiveApplication.live_event_id.in_(target_event_ids),
+                SongLiveApplication.status.in_(["applied", "approved"]),
+            )
+            .all()
+        )
+        for song_request_id, status in applications:
+            if status == "approved":
+                approved_song_ids.add(song_request_id)
+                applied_song_ids.discard(song_request_id)
+            elif song_request_id not in approved_song_ids:
+                applied_song_ids.add(song_request_id)
+
+    ready_song_ids: set[UUID] = set()
+    if month_key:
+        ready_song_ids = {
+            song_id
+            for song_id, in (
+                db.query(SongRequest.id)
+                .filter(
+                    SongRequest.id.in_(accepted_song_ids),
+                    SongRequest.circle_id == event.circle_id,
+                    SongRequest.status == "ready",
+                    SongRequest.planned_month == month_key,
+                )
+                .all()
+            )
+        }
+        ready_song_ids -= approved_song_ids
+        ready_song_ids -= applied_song_ids
+
+    labels: list[str] = []
+    if month_key:
+        if approved_song_ids:
+            labels.append(f"自動集計: この月は出演確定 {len(approved_song_ids)} 曲")
+        if applied_song_ids:
+            labels.append(f"自動集計: この月は申請中 {len(applied_song_ids)} 曲")
+        if ready_song_ids:
+            labels.append(f"自動集計: この月は参加予定 {len(ready_song_ids)} 曲")
+    else:
+        if approved_song_ids:
+            labels.append(f"自動集計: このライブは出演確定 {len(approved_song_ids)} 曲")
+        if applied_song_ids:
+            labels.append(f"自動集計: このライブは申請中 {len(applied_song_ids)} 曲")
+    return labels
+
+
+def _build_live_event_response(db: Session, event: LiveEvent, current_user: User) -> LiveEventResponse:
     applications = (
         db.query(SongLiveApplication, SongRequest)
         .join(SongRequest, SongLiveApplication.song_request_id == SongRequest.id)
@@ -77,15 +208,28 @@ def _build_live_event_response(db: Session, event: LiveEvent) -> LiveEventRespon
             )
         )
 
+    current_user_status = (
+        db.query(UserLiveEventStatus)
+        .filter(
+            UserLiveEventStatus.user_id == current_user.id,
+            UserLiveEventStatus.live_event_id == event.id,
+        )
+        .first()
+    )
+
     return LiveEventResponse(
         id=event.id,
         circle_id=event.circle_id,
         name=event.name,
         event_date=event.event_date,
         entry_status=event.entry_status,
+        lifecycle_status=event.lifecycle_status,
         created_by=event.created_by,
         created_at=event.created_at,
         songs=songs,
+        current_user_status=current_user_status.status if current_user_status else "want_invites",
+        current_user_status_memo=current_user_status.memo if current_user_status else None,
+        current_user_auto_labels=_build_current_user_auto_labels(db, event, current_user),
     )
 
 
@@ -99,19 +243,33 @@ def create_live_event(
     circle = db.query(Circle).filter(Circle.id == circle_id).first()
     if not circle:
         raise HTTPException(status_code=404, detail="Circle not found")
-    require_circle_admin(db, circle_id, current_user.id)
+    require_circle_permission_for_action(
+        db,
+        circle_id,
+        current_user.id,
+        "create_live_event",
+        "ライブ作成権限が必要です",
+    )
+    if request.entry_status not in ("open", "closed"):
+        raise HTTPException(status_code=400, detail="entry_status は open/closed")
+    if request.lifecycle_status not in ("scheduled", "completed", "cancelled"):
+        raise HTTPException(
+            status_code=400,
+            detail="lifecycle_status は scheduled/completed/cancelled",
+        )
 
     event = LiveEvent(
         circle_id=circle_id,
         name=request.name,
         event_date=request.event_date,
-        entry_status=request.entry_status or "open",
+        entry_status=request.entry_status or "closed",
+        lifecycle_status=request.lifecycle_status or "scheduled",
         created_by=current_user.id,
     )
     db.add(event)
     db.commit()
     db.refresh(event)
-    return _build_live_event_response(db, event)
+    return _build_live_event_response(db, event, current_user)
 
 
 @router.get("/circles/{circle_id}/live-events", response_model=List[LiveEventResponse])
@@ -127,7 +285,7 @@ def list_live_events(
         .order_by(LiveEvent.event_date.asc().nullslast(), LiveEvent.created_at.asc())
         .all()
     )
-    return [_build_live_event_response(db, e) for e in events]
+    return [_build_live_event_response(db, e, current_user) for e in events]
 
 
 @router.patch("/live-events/{event_id}", response_model=LiveEventResponse)
@@ -140,19 +298,97 @@ def update_live_event(
     event = db.query(LiveEvent).filter(LiveEvent.id == event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="LiveEvent not found")
-    require_circle_admin(db, event.circle_id, current_user.id)
+    previous_entry_status = event.entry_status
+    previous_lifecycle_status = event.lifecycle_status
 
     if request.name is not None:
+        require_circle_permission_for_action(
+            db,
+            event.circle_id,
+            current_user.id,
+            "create_live_event",
+            "ライブ編集権限が必要です",
+        )
         event.name = request.name
     if request.event_date is not None:
+        require_circle_permission_for_action(
+            db,
+            event.circle_id,
+            current_user.id,
+            "create_live_event",
+            "ライブ編集権限が必要です",
+        )
         event.event_date = request.event_date
     if request.entry_status is not None:
         if request.entry_status not in ("open", "closed"):
             raise HTTPException(status_code=400, detail="entry_status は open/closed")
+        required_permission = (
+            "open_live_entry" if request.entry_status == "open" else "close_live_entry"
+        )
+        require_circle_permission_for_action(
+            db,
+            event.circle_id,
+            current_user.id,
+            required_permission,
+            "ライブ受付を変更する権限が必要です",
+        )
         event.entry_status = request.entry_status
+    if request.lifecycle_status is not None:
+        if request.lifecycle_status not in ("scheduled", "completed", "cancelled"):
+            raise HTTPException(
+                status_code=400,
+                detail="lifecycle_status は scheduled/completed/cancelled",
+            )
+        required_permission = {
+            "scheduled": "revert_live_to_scheduled",
+            "completed": "mark_live_completed",
+            "cancelled": "mark_live_cancelled",
+        }[request.lifecycle_status]
+        require_circle_permission_for_action(
+            db,
+            event.circle_id,
+            current_user.id,
+            required_permission,
+            "ライブ状態を変更する権限が必要です",
+        )
+        event.lifecycle_status = request.lifecycle_status
+        if request.lifecycle_status in ("completed", "cancelled"):
+            event.entry_status = "closed"
+
+    live_events_path = f"/circles/{event.circle_id}/live-events"
+    if previous_entry_status != "open" and event.entry_status == "open":
+        _notify_circle_members(
+            db,
+            circle_id=event.circle_id,
+            actor_user_id=current_user.id,
+            notification_type="live_entry_opened",
+            title="ライブの申請受付が始まりました",
+            body=f"「{event.name}」の申請受付が開始されました。",
+            link_path=live_events_path,
+        )
+    if previous_lifecycle_status != "completed" and event.lifecycle_status == "completed":
+        _notify_circle_members(
+            db,
+            circle_id=event.circle_id,
+            actor_user_id=current_user.id,
+            notification_type="live_event_completed",
+            title="ライブが終了しました",
+            body=f"「{event.name}」は終了済みとして更新されました。",
+            link_path=live_events_path,
+        )
+    if previous_lifecycle_status != "cancelled" and event.lifecycle_status == "cancelled":
+        _notify_circle_members(
+            db,
+            circle_id=event.circle_id,
+            actor_user_id=current_user.id,
+            notification_type="live_event_cancelled",
+            title="ライブが中止になりました",
+            body=f"「{event.name}」は中止として更新されました。",
+            link_path=live_events_path,
+        )
     db.commit()
     db.refresh(event)
-    return _build_live_event_response(db, event)
+    return _build_live_event_response(db, event, current_user)
 
 
 # ------------------- ユーザーの月別意思表明 -------------------

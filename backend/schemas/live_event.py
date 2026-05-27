@@ -9,13 +9,15 @@ from pydantic import BaseModel, Field
 class LiveEventCreateRequest(BaseModel):
     name: str
     event_date: Optional[date] = None
-    entry_status: str = "open"
+    entry_status: str = "closed"
+    lifecycle_status: str = "scheduled"
 
 
 class LiveEventUpdateRequest(BaseModel):
     name: Optional[str] = None
     event_date: Optional[date] = None
     entry_status: Optional[str] = None
+    lifecycle_status: Optional[str] = None
 
 
 class LiveEventResponse(BaseModel):
@@ -24,9 +26,13 @@ class LiveEventResponse(BaseModel):
     name: str
     event_date: Optional[date] = None
     entry_status: str
+    lifecycle_status: str
     created_by: UUID
     created_at: datetime
     songs: List["LiveEventSongSummaryResponse"] = Field(default_factory=list)
+    current_user_status: str = "want_invites"
+    current_user_status_memo: Optional[str] = None
+    current_user_auto_labels: List[str] = Field(default_factory=list)
 
 
 class LiveEventSongSummaryResponse(BaseModel):

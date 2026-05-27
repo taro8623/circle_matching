@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 
 from deps import (
-    get_db, get_current_user, require_circle_member, require_circle_admin,
+    get_db, get_current_user, require_circle_member, require_circle_permission_for_action,
 )
 from models import (
     User, SongRequest, LiveEvent, SongLiveApplication, Notification,
@@ -61,6 +61,8 @@ def apply_to_live(
         raise HTTPException(status_code=404, detail="LiveEvent not found")
     if event.circle_id != song.circle_id:
         raise HTTPException(status_code=400, detail="他のサークルのライブには申請できません")
+    if event.lifecycle_status != "scheduled":
+        raise HTTPException(status_code=400, detail="開催前のライブにのみ申請できます")
     if event.entry_status != "open":
         raise HTTPException(status_code=400, detail="このライブはエントリー受付中ではありません")
 
@@ -109,10 +111,24 @@ def decide_live_application(
     event = db.query(LiveEvent).filter(LiveEvent.id == app_row.live_event_id).first()
     if not event:
         raise HTTPException(status_code=404, detail="LiveEvent not found")
-    require_circle_admin(db, event.circle_id, current_user.id)
+    if event.lifecycle_status != "scheduled":
+        raise HTTPException(status_code=400, detail="開催前のライブのみ承認/却下できます")
 
     if request.status not in ("approved", "rejected"):
         raise HTTPException(status_code=400, detail="status は approved/rejected")
+
+    required_permission = (
+        "approve_live_applications"
+        if request.status == "approved"
+        else "reject_live_applications"
+    )
+    require_circle_permission_for_action(
+        db,
+        event.circle_id,
+        current_user.id,
+        required_permission,
+        "ライブ申請を処理する権限が必要です",
+    )
 
     app_row.status = request.status
     app_row.decided_by = current_user.id
@@ -157,6 +173,12 @@ def withdraw_application(
         raise HTTPException(status_code=404, detail="Application not found")
     if app_row.applied_by != current_user.id:
         raise HTTPException(status_code=403, detail="申請者のみ取り下げできます")
+
+    event = db.query(LiveEvent).filter(LiveEvent.id == app_row.live_event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="LiveEvent not found")
+    if event.lifecycle_status != "scheduled":
+        raise HTTPException(status_code=400, detail="開催前のライブのみ取り下げできます")
 
     app_row.status = "withdrawn"
     db.commit()

@@ -105,6 +105,27 @@ class CircleMember(Base):
     user = relationship("User", back_populates="circle_memberships")
 
 
+class CircleMemberPermission(Base):
+    __tablename__ = "circle_member_permissions"
+    __table_args__ = (
+        UniqueConstraint(
+            "circle_id",
+            "user_id",
+            "permission_key",
+            name="uq_circle_member_permissions_circle_user_permission",
+        ),
+        Index("ix_circle_member_permissions_circle", "circle_id"),
+        Index("ix_circle_member_permissions_user", "user_id"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    circle_id = Column(UUID(as_uuid=True), ForeignKey("circles.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    permission_key = Column(String, nullable=False)
+    granted_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 # =====================================================================
 # 3. 定期ライブ
 # =====================================================================
@@ -115,7 +136,9 @@ class LiveEvent(Base):
     circle_id = Column(UUID(as_uuid=True), ForeignKey("circles.id", ondelete="CASCADE"), nullable=False)
     name = Column(String, nullable=False)             # "2026年8月 定例夏ライブ"
     event_date = Column(Date)                         # 実施日（未確定OK）
-    entry_status = Column(String, nullable=False, default="open")  # 'open' / 'closed'
+    entry_status = Column(String, nullable=False, default="closed")  # 'open' / 'closed'
+    lifecycle_status = Column(String, nullable=False, default="scheduled")
+    # 'scheduled'(開催前/開催中) / 'completed'(終了) / 'cancelled'(中止)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 

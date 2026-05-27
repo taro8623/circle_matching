@@ -53,6 +53,7 @@ class MemberResponse(BaseModel):
     id: UUID
     name: str
     parts: List[str] = []
+    bio: Optional[str] = None
     role: Optional[str] = None
 
 
@@ -71,3 +72,36 @@ class CircleDetailResponse(BaseModel):
     description: Optional[str] = None
     members: List[MemberResponse]
     songs: List[SongSummary]
+
+
+class CirclePermissionMemberSummaryResponse(BaseModel):
+    user_id: UUID
+    user_name: str
+    role: str
+
+
+class CirclePermissionAssigneeResponse(BaseModel):
+    user_id: UUID
+    user_name: str
+    is_owner: bool
+    is_explicit: bool
+
+
+class CirclePermissionItemResponse(BaseModel):
+    key: str
+    label: str
+    description: Optional[str] = None
+    assigned_users: List[CirclePermissionAssigneeResponse]
+
+
+class CirclePermissionSettingsResponse(BaseModel):
+    circle_id: UUID
+    current_user_id: UUID
+    current_user_permissions: List[str]
+    members: List[CirclePermissionMemberSummaryResponse]
+    permissions: List[CirclePermissionItemResponse]
+
+
+class CirclePermissionUpdateRequest(BaseModel):
+    user_id: UUID
+    enabled: bool

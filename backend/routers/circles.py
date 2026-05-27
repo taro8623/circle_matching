@@ -8,11 +8,24 @@ from sqlalchemy.orm import Session
 
 from deps import get_db, get_current_user, require_circle_member
 from models import (
-    User, Circle, CircleMember, SongRequest, SongRecruitingPart, UserPart,
+    User, Circle, CircleMember, CircleMemberPermission, SongRequest, SongRecruitingPart, UserPart,
 )
 from schemas.circle import (
     CircleCreate, CircleJoinRequest, CircleDetailResponse,
     MemberResponse, SongSummary,
+    CirclePermissionAssigneeResponse,
+    CirclePermissionItemResponse,
+    CirclePermissionMemberSummaryResponse,
+    CirclePermissionSettingsResponse,
+    CirclePermissionUpdateRequest,
+)
+from services.circle_permissions import (
+    CIRCLE_PERMISSION_DEFINITIONS,
+    ALL_CIRCLE_PERMISSION_KEYS,
+    get_effective_circle_permission_keys,
+    list_active_circle_members,
+    list_circle_permission_assignees,
+    require_circle_permission,
 )
 
 
@@ -145,7 +158,7 @@ def get_circle_detail(
             r.part for r in db.query(UserPart).filter(UserPart.user_id == u.id).all()
         ]
         member_list.append(
-            MemberResponse(id=u.id, name=u.name, parts=parts, role=cm.role)
+            MemberResponse(id=u.id, name=u.name, parts=parts, bio=u.bio, role=cm.role)
         )
 
     # 曲一覧(サマリのみ)
@@ -191,3 +204,106 @@ def leave_circle(
     membership.left_at = _dt.utcnow()
     db.commit()
     return {"message": "サークルから脱退しました"}
+
+
+
+@router.get("/{circle_id}/permission-settings", response_model=CirclePermissionSettingsResponse)
+def get_circle_permission_settings(
+    circle_id: UUID = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_circle_member(db, circle_id, current_user.id)
+
+    permission_items = []
+    for definition in CIRCLE_PERMISSION_DEFINITIONS:
+        assignees = [
+            CirclePermissionAssigneeResponse(**assignee)
+            for assignee in list_circle_permission_assignees(db, circle_id, definition["key"])
+        ]
+        permission_items.append(
+            CirclePermissionItemResponse(
+                key=definition["key"],
+                label=definition["label"],
+                description=definition["description"],
+                assigned_users=assignees,
+            )
+        )
+
+    members = [
+        CirclePermissionMemberSummaryResponse(**member)
+        for member in list_active_circle_members(db, circle_id)
+    ]
+    return CirclePermissionSettingsResponse(
+        circle_id=circle_id,
+        current_user_id=current_user.id,
+        current_user_permissions=get_effective_circle_permission_keys(db, circle_id, current_user.id),
+        members=members,
+        permissions=permission_items,
+    )
+
+
+@router.patch("/{circle_id}/permissions/{permission_key}")
+def update_circle_permission(
+    request: CirclePermissionUpdateRequest,
+    circle_id: UUID = Path(...),
+    permission_key: str = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_circle_member(db, circle_id, current_user.id)
+    if permission_key not in ALL_CIRCLE_PERMISSION_KEYS:
+        raise HTTPException(status_code=404, detail="権限種別が見つかりません")
+
+    target_membership = (
+        db.query(CircleMember)
+        .filter(
+            CircleMember.circle_id == circle_id,
+            CircleMember.user_id == request.user_id,
+            CircleMember.left_at.is_(None),
+        )
+        .first()
+    )
+    if not target_membership:
+        raise HTTPException(status_code=404, detail="対象メンバーが見つかりません")
+    if target_membership.role == "owner":
+        raise HTTPException(status_code=400, detail="代表者の権限は個別変更できません")
+
+    required_permission = (
+        "grant_circle_permissions" if request.enabled else "revoke_circle_permissions"
+    )
+    require_circle_permission(
+        db,
+        circle_id,
+        current_user.id,
+        required_permission,
+        "権限設定を変更する権限がありません",
+    )
+
+    grant = (
+        db.query(CircleMemberPermission)
+        .filter(
+            CircleMemberPermission.circle_id == circle_id,
+            CircleMemberPermission.user_id == request.user_id,
+            CircleMemberPermission.permission_key == permission_key,
+        )
+        .first()
+    )
+
+    if request.enabled:
+        if not grant:
+            db.add(
+                CircleMemberPermission(
+                    circle_id=circle_id,
+                    user_id=request.user_id,
+                    permission_key=permission_key,
+                    granted_by=current_user.id,
+                )
+            )
+            db.commit()
+        return {"message": "権限を付与しました", "enabled": True}
+
+    if grant:
+        db.delete(grant)
+        db.commit()
+    return {"message": "権限を外しました", "enabled": False}

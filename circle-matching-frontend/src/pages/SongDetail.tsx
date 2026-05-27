@@ -36,7 +36,13 @@ type Song = {
   planned_month?: string | null;
 };
 type Me = { id: string; name: string; email: string; parts: string[] };
-type LiveEvent = { id: string; name: string; entry_status: string; event_date?: string | null };
+type LiveEvent = {
+  id: string;
+  name: string;
+  entry_status: string;
+  lifecycle_status: string;
+  event_date?: string | null;
+};
 type LiveApplication = {
   id: string;
   song_request_id: string;
@@ -460,8 +466,10 @@ export default function SongDetail() {
                   const ev = events.find((e) => e.id === a.live_event_id);
                   return (
                     <li key={a.id}>
-                      {ev?.name || a.live_event_id} — 状態: {a.status}
-                      {(a.status === "applied" || a.status === "approved") && (
+                      {ev?.name || a.live_event_id}
+                      {ev ? ` (${ev.lifecycle_status === "completed" ? "終了" : ev.lifecycle_status === "cancelled" ? "中止" : "開催前"})` : ""}
+                      {" "}— 状態: {a.status}
+                      {(a.status === "applied" || a.status === "approved") && ev?.lifecycle_status === "scheduled" && (
                         <button disabled={busy} onClick={() => withdrawLiveApplication(a.id)} style={{ marginLeft: 8 }}>
                           取り下げ
                         </button>
@@ -475,7 +483,7 @@ export default function SongDetail() {
             <div style={{ display: "flex", gap: 8 }}>
               <select value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)} style={styles.input}>
                 <option value="">ライブを選択</option>
-                {events.filter(ev => ev.entry_status === "open").map((ev) => (
+                {events.filter(ev => ev.entry_status === "open" && ev.lifecycle_status === "scheduled").map((ev) => (
                   <option key={ev.id} value={ev.id}>{ev.name} ({ev.event_date || "日付未定"})</option>
                 ))}
               </select>

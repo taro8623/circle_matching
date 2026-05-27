@@ -42,7 +42,6 @@ type CircleSongsForMe = {
   circle_id: string;
   circle_name: string;
   current_user_id: string;
-  current_user_role: string;
   current_user_parts: string[];
   own_songs: CircleSong[];
   applicable_songs: CircleSong[];
@@ -243,7 +242,9 @@ export default function CircleDetail() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => navigate(`/circles/${circleId}/live-events`)}>ライブ一覧</button>
+          <button onClick={() => navigate(`/circles/${circleId}/participation-history`)}>参加履歴</button>
           <button onClick={() => navigate(`/circles/${circleId}/members`)}>メンバー</button>
+          <button onClick={() => navigate(`/circles/${circleId}/permission-settings`)}>権限付与設定</button>
           <button onClick={() => navigate(`/circles/${circleId}/songs/new`)}>曲を起票</button>
         </div>
       </div>
