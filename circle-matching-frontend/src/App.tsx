@@ -16,6 +16,8 @@ import CircleParticipationHistory from "./pages/CircleParticipationHistory";
 import CirclePermissionSettings from "./pages/CirclePermissionSettings";
 import CircleAdminActionLogs from "./pages/CircleAdminActionLogs";
 import CircleParticipationPlans from "./pages/CircleParticipationPlans";
+import CircleRequestManagement from "./pages/CircleRequestManagement";
+import CircleChats from "./pages/CircleChats";
 
 export default function App() {
   return (
@@ -31,6 +33,8 @@ export default function App() {
         <Route path="/circles/:circleId" element={<ProtectedRoute><CircleDetail /></ProtectedRoute>} />
         <Route path="/circles/:circleId/songs/new" element={<ProtectedRoute><SongCreate /></ProtectedRoute>} />
         <Route path="/circles/:circleId/live-events" element={<ProtectedRoute><LiveEvents /></ProtectedRoute>} />
+        <Route path="/circles/:circleId/request-management" element={<ProtectedRoute><CircleRequestManagement /></ProtectedRoute>} />
+        <Route path="/circles/:circleId/chats" element={<ProtectedRoute><CircleChats /></ProtectedRoute>} />
         <Route path="/circles/:circleId/participation-plans" element={<ProtectedRoute><CircleParticipationPlans /></ProtectedRoute>} />
         <Route path="/circles/:circleId/participation-history" element={<ProtectedRoute><CircleParticipationHistory /></ProtectedRoute>} />
         <Route path="/circles/:circleId/members" element={<ProtectedRoute><CircleMembers /></ProtectedRoute>} />

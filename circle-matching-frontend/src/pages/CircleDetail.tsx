@@ -243,6 +243,8 @@ export default function CircleDetail() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => navigate(`/circles/${circleId}/live-events`)}>ライブ一覧</button>
+          <button onClick={() => navigate(`/circles/${circleId}/request-management`)}>応募・依頼管理</button>
+          <button onClick={() => navigate(`/circles/${circleId}/chats`)}>チャット</button>
           <button onClick={() => navigate(`/circles/${circleId}/participation-plans`)}>参加予定</button>
           <button onClick={() => navigate(`/circles/${circleId}/participation-history`)}>参加履歴</button>
           <button onClick={() => navigate(`/circles/${circleId}/members`)}>メンバー</button>

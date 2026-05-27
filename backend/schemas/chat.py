@@ -22,3 +22,13 @@ class ChatRoomResponse(BaseModel):
     song_request_id: UUID
     participant_ids: List[UUID]
     messages: List[ChatMessageResponse]
+
+
+class ChatRoomListItemResponse(BaseModel):
+    chat_room_id: UUID
+    song_request_id: UUID
+    song_title: str
+    artist: str
+    last_message_preview: Optional[str] = None
+    last_message_at: Optional[datetime] = None
+    unread_count: int = 0
