@@ -70,3 +70,58 @@ class CircleParticipationPlansResponse(BaseModel):
     approved: List[ParticipationPlanItemResponse] = []
     applied: List[ParticipationPlanItemResponse] = []
     planned: List[ParticipationPlanItemResponse] = []
+
+
+class HomeCircleResponse(BaseModel):
+    id: UUID
+    name: str
+
+
+class HomeOfferItemResponse(BaseModel):
+    circle_id: UUID
+    circle_name: str
+    song_id: UUID
+    song_title: str
+    artist: str
+    part: str
+
+
+class HomeApplicationItemResponse(BaseModel):
+    circle_id: UUID
+    circle_name: str
+    song_id: UUID
+    song_title: str
+    artist: str
+    part: str
+
+
+class HomeParticipationItemResponse(BaseModel):
+    circle_id: UUID
+    circle_name: str
+    live_event_id: UUID
+    live_event_name: str
+    live_event_date: Optional[date] = None
+    song_id: UUID
+    song_title: str
+    artist: str
+    parts: List[str] = []
+
+
+class HomeChatItemResponse(BaseModel):
+    circle_id: UUID
+    circle_name: str
+    song_id: UUID
+    song_title: str
+    artist: str
+    unread_count: int = 0
+    last_message_preview: Optional[str] = None
+    last_message_at: Optional[str] = None
+
+
+class MeHomeResponse(BaseModel):
+    user_name: str
+    circles: List[HomeCircleResponse] = []
+    pending_offers: List[HomeOfferItemResponse] = []
+    pending_applications: List[HomeApplicationItemResponse] = []
+    upcoming_participations: List[HomeParticipationItemResponse] = []
+    unread_chats: List[HomeChatItemResponse] = []

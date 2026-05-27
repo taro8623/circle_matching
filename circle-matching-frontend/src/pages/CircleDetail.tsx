@@ -35,6 +35,7 @@ type CircleSong = {
   chat_room_id?: string | null;
   planned_month?: string | null;
   latest_live_event_name?: string | null;
+  latest_live_event_date?: string | null;
   latest_live_application_status?: string | null;
 };
 
@@ -217,21 +218,53 @@ export default function CircleDetail() {
 
   const acceptedSongs = data.joined_songs;
   const pendingSongs = [...data.applied_songs, ...data.offered_songs];
-  const openSongs = data.all_recruiting_songs.filter(song => {
-    if (song.requested_by_id === data.current_user_id) return false;
-    if (data.joined_songs.some(js => js.id === song.id)) return false;
-    const myEntry = song.entries.find(e => e.user_id === data.current_user_id);
-    if (myEntry && (myEntry.status === "declined" || myEntry.status === "withdrawn")) return false;
-    if (recruitFilter) {
-      return song.recruiting_parts.some(rp => rp.part === recruitFilter && rp.accepted_count < rp.required_count);
-    }
-    return true;
-  });
+  const openSongs = data.all_recruiting_songs
+    .filter(song => {
+      if (song.requested_by_id === data.current_user_id) return false;
+      if (data.joined_songs.some(js => js.id === song.id)) return false;
+      const myEntry = song.entries.find(e => e.user_id === data.current_user_id);
+      if (myEntry && (myEntry.status === "declined" || myEntry.status === "withdrawn")) return false;
+      if (recruitFilter) {
+        return song.recruiting_parts.some(rp => rp.part === recruitFilter && rp.accepted_count < rp.required_count);
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const aHasUpcomingLive =
+        (a.latest_live_application_status === "applied" || a.latest_live_application_status === "approved") &&
+        !!a.latest_live_event_date;
+      const bHasUpcomingLive =
+        (b.latest_live_application_status === "applied" || b.latest_live_application_status === "approved") &&
+        !!b.latest_live_event_date;
+
+      if (aHasUpcomingLive !== bHasUpcomingLive) {
+        return aHasUpcomingLive ? -1 : 1;
+      }
+
+      if (aHasUpcomingLive && bHasUpcomingLive) {
+        const dateDiff =
+          new Date(a.latest_live_event_date as string).getTime() -
+          new Date(b.latest_live_event_date as string).getTime();
+        if (dateDiff !== 0) return dateDiff;
+      }
+
+      const aHasPlannedMonth = !!a.planned_month;
+      const bHasPlannedMonth = !!b.planned_month;
+      if (aHasPlannedMonth !== bHasPlannedMonth) {
+        return aHasPlannedMonth ? -1 : 1;
+      }
+
+      if (a.planned_month && b.planned_month && a.planned_month !== b.planned_month) {
+        return a.planned_month.localeCompare(b.planned_month);
+      }
+
+      return a.title.localeCompare(b.title, "ja");
+    });
 
   return (
     <main style={styles.page}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-        <button onClick={() => navigate("/me")}>戻る</button>
+        <button onClick={() => navigate("/home")}>戻る</button>
         <NotificationButton />
       </div>
       <div style={styles.titleRow}>
@@ -243,6 +276,7 @@ export default function CircleDetail() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => navigate(`/circles/${circleId}/live-events`)}>ライブ一覧</button>
+          <button onClick={() => navigate(`/circles/${circleId}/bi`)}>BI</button>
           <button onClick={() => navigate(`/circles/${circleId}/request-management`)}>応募・依頼管理</button>
           <button onClick={() => navigate(`/circles/${circleId}/chats`)}>チャット</button>
           <button onClick={() => navigate(`/circles/${circleId}/participation-plans`)}>参加予定</button>

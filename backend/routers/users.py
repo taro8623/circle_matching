@@ -9,12 +9,14 @@ from sqlalchemy.orm import Session
 from deps import get_db, get_current_user, require_circle_member
 from models import (
     User, UserPart, Circle, CircleMember, SongPartEntry, SongRequest,
-    SongLiveApplication, LiveEvent,
+    SongLiveApplication, LiveEvent, SongChatRoom, ChatRoomParticipant, ChatMessage,
 )
 from schemas.user import (
     MeResponse, UserPartsUpdateRequest, CircleSummaryResponse, ProfileUpdateRequest,
     CircleParticipationHistoryResponse, ParticipationHistoryItemResponse,
     CircleParticipationPlansResponse, ParticipationPlanItemResponse,
+    MeHomeResponse, HomeCircleResponse, HomeOfferItemResponse,
+    HomeApplicationItemResponse, HomeParticipationItemResponse, HomeChatItemResponse,
 )
 
 
@@ -116,6 +118,176 @@ def get_my_circles(
         CircleSummaryResponse(id=c.id, name=c.name, description=c.description)
         for c in circles
     ]
+
+
+@router.get("/home", response_model=MeHomeResponse)
+def get_my_home(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    memberships = (
+        db.query(CircleMember, Circle)
+        .join(Circle, CircleMember.circle_id == Circle.id)
+        .filter(
+            CircleMember.user_id == current_user.id,
+            CircleMember.left_at.is_(None),
+        )
+        .all()
+    )
+    circles = [HomeCircleResponse(id=circle.id, name=circle.name) for _, circle in memberships]
+
+    pending_offer_rows = (
+        db.query(SongPartEntry, SongRequest, Circle)
+        .join(SongRequest, SongPartEntry.song_request_id == SongRequest.id)
+        .join(Circle, SongRequest.circle_id == Circle.id)
+        .filter(
+            SongPartEntry.user_id == current_user.id,
+            SongPartEntry.kind == "offer",
+            SongPartEntry.status == "pending",
+        )
+        .order_by(SongPartEntry.created_at.desc())
+        .all()
+    )
+    pending_offers = [
+        HomeOfferItemResponse(
+            circle_id=circle.id,
+            circle_name=circle.name,
+            song_id=song.id,
+            song_title=song.title,
+            artist=song.artist,
+            part=entry.part,
+        )
+        for entry, song, circle in pending_offer_rows
+    ]
+
+    pending_application_rows = (
+        db.query(SongPartEntry, SongRequest, Circle)
+        .join(SongRequest, SongPartEntry.song_request_id == SongRequest.id)
+        .join(Circle, SongRequest.circle_id == Circle.id)
+        .filter(
+            SongPartEntry.user_id == current_user.id,
+            SongPartEntry.kind == "application",
+            SongPartEntry.status == "pending",
+        )
+        .order_by(SongPartEntry.created_at.desc())
+        .all()
+    )
+    pending_applications = [
+        HomeApplicationItemResponse(
+            circle_id=circle.id,
+            circle_name=circle.name,
+            song_id=song.id,
+            song_title=song.title,
+            artist=song.artist,
+            part=entry.part,
+        )
+        for entry, song, circle in pending_application_rows
+    ]
+
+    accepted_entries = (
+        db.query(SongPartEntry, SongRequest, SongLiveApplication, LiveEvent, Circle)
+        .join(SongRequest, SongPartEntry.song_request_id == SongRequest.id)
+        .join(SongLiveApplication, SongLiveApplication.song_request_id == SongRequest.id)
+        .join(LiveEvent, SongLiveApplication.live_event_id == LiveEvent.id)
+        .join(Circle, SongRequest.circle_id == Circle.id)
+        .filter(
+            SongPartEntry.user_id == current_user.id,
+            SongPartEntry.status == "accepted",
+            SongLiveApplication.status == "approved",
+            LiveEvent.lifecycle_status == "scheduled",
+        )
+        .all()
+    )
+    upcoming_map: dict[tuple[UUID, UUID], dict] = {}
+    for entry, song, _, live_event, circle in accepted_entries:
+        key = (live_event.id, song.id)
+        if key not in upcoming_map:
+            upcoming_map[key] = {
+                "circle_id": circle.id,
+                "circle_name": circle.name,
+                "live_event_id": live_event.id,
+                "live_event_name": live_event.name,
+                "live_event_date": live_event.event_date,
+                "song_id": song.id,
+                "song_title": song.title,
+                "artist": song.artist,
+                "parts": [],
+            }
+        if entry.part not in upcoming_map[key]["parts"]:
+            upcoming_map[key]["parts"].append(entry.part)
+    upcoming_rows = list(upcoming_map.values())
+    upcoming_rows.sort(
+        key=lambda row: (
+            row["live_event_date"] is None,
+            row["live_event_date"],
+            row["circle_name"],
+            row["song_title"],
+        )
+    )
+    upcoming_participations = [
+        HomeParticipationItemResponse(
+            circle_id=row["circle_id"],
+            circle_name=row["circle_name"],
+            live_event_id=row["live_event_id"],
+            live_event_name=row["live_event_name"],
+            live_event_date=row["live_event_date"],
+            song_id=row["song_id"],
+            song_title=row["song_title"],
+            artist=row["artist"],
+            parts=sorted(row["parts"]),
+        )
+        for row in upcoming_rows
+    ]
+
+    chat_rows = (
+        db.query(ChatRoomParticipant, SongChatRoom, SongRequest, Circle)
+        .join(SongChatRoom, ChatRoomParticipant.chat_room_id == SongChatRoom.id)
+        .join(SongRequest, SongChatRoom.song_request_id == SongRequest.id)
+        .join(Circle, SongRequest.circle_id == Circle.id)
+        .filter(ChatRoomParticipant.user_id == current_user.id)
+        .all()
+    )
+    unread_chats: list[HomeChatItemResponse] = []
+    for participant, _, song, circle in chat_rows:
+        unread_query = db.query(ChatMessage).filter(ChatMessage.chat_room_id == participant.chat_room_id)
+        if participant.last_read_at is not None:
+            unread_query = unread_query.filter(ChatMessage.created_at > participant.last_read_at)
+        unread_count = unread_query.count()
+        if unread_count == 0:
+            continue
+        last_message = (
+            db.query(ChatMessage)
+            .filter(ChatMessage.chat_room_id == participant.chat_room_id)
+            .order_by(ChatMessage.created_at.desc())
+            .first()
+        )
+        preview = None
+        last_message_at = None
+        if last_message:
+            preview = last_message.content if len(last_message.content) <= 80 else f"{last_message.content[:80]}..."
+            last_message_at = last_message.created_at.isoformat()
+        unread_chats.append(
+            HomeChatItemResponse(
+                circle_id=circle.id,
+                circle_name=circle.name,
+                song_id=song.id,
+                song_title=song.title,
+                artist=song.artist,
+                unread_count=unread_count,
+                last_message_preview=preview,
+                last_message_at=last_message_at,
+            )
+        )
+    unread_chats.sort(key=lambda item: item.last_message_at or "", reverse=True)
+
+    return MeHomeResponse(
+        user_name=current_user.name,
+        circles=circles,
+        pending_offers=pending_offers,
+        pending_applications=pending_applications,
+        upcoming_participations=upcoming_participations,
+        unread_chats=unread_chats,
+    )
 
 
 @router.get("/circles/{circle_id}/participation-history", response_model=CircleParticipationHistoryResponse)

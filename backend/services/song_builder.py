@@ -96,10 +96,12 @@ def build_song_item(
         .first()
     )
     latest_live_event_name = None
+    latest_live_event_date = None
     latest_live_application_status = None
     if latest_app:
         app, event = latest_app
         latest_live_event_name = event.name
+        latest_live_event_date = event.event_date
         latest_live_application_status = app.status
 
     return SongItemResponse(
@@ -120,6 +122,7 @@ def build_song_item(
         chat_room_id=chat.id if chat else None,
         planned_month=song.planned_month,
         latest_live_event_name=latest_live_event_name,
+        latest_live_event_date=latest_live_event_date,
         latest_live_application_status=latest_live_application_status,
     )
 

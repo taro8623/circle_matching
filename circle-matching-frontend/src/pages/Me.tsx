@@ -144,7 +144,10 @@ export default function MePage() {
     <div style={{ padding: "20px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <h2>{userName || "..."} さんのプロフィール</h2>
-        <NotificationButton />
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button type="button" onClick={() => navigate("/home")}>ホーム</button>
+          <NotificationButton />
+        </div>
       </div>
       <hr />
       <h3>自己紹介 <span style={{ color: "#dc2626" }}>*必須</span></h3>

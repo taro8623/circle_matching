@@ -54,6 +54,7 @@ class MemberResponse(BaseModel):
     name: str
     parts: List[str] = []
     bio: Optional[str] = None
+    favorite_artists: List[str] = []
     role: Optional[str] = None
 
 
@@ -118,3 +119,24 @@ class CircleAdminActionLogResponse(BaseModel):
     summary: str
     details: Optional[str] = None
     created_at: str
+
+
+class CircleBIPopularArtistResponse(BaseModel):
+    artist_name: str
+    member_count: int
+
+
+class CircleBIMemberStatResponse(BaseModel):
+    user_id: UUID
+    user_name: str
+    appearance_count: int
+    participation_rate: float
+
+
+class CircleBIResponse(BaseModel):
+    circle_id: UUID
+    circle_name: str
+    member_count: int
+    completed_live_count: int
+    popular_artists: List[CircleBIPopularArtistResponse] = []
+    member_stats: List[CircleBIMemberStatResponse] = []

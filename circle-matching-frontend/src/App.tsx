@@ -5,6 +5,7 @@ import CircleJoin from "./pages/CircleJoin";
 import Me from "./pages/Me";
 import ProtectedRoute from "./components/ProtectedRoute";
 import CreateCirclePage from "./pages/CreateCircles";
+import Home from "./pages/Home";
 import CircleDetail from "./pages/CircleDetail";
 import SongCreate from "./pages/SongCreate";
 import SongDetail from "./pages/SongDetail";
@@ -18,14 +19,16 @@ import CircleAdminActionLogs from "./pages/CircleAdminActionLogs";
 import CircleParticipationPlans from "./pages/CircleParticipationPlans";
 import CircleRequestManagement from "./pages/CircleRequestManagement";
 import CircleChats from "./pages/CircleChats";
+import CircleBI from "./pages/CircleBI";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
 
         <Route path="/circle/create" element={<CreateCirclePage />} />
         <Route path="/circle/join" element={<CircleJoin />} />
@@ -35,6 +38,7 @@ export default function App() {
         <Route path="/circles/:circleId/live-events" element={<ProtectedRoute><LiveEvents /></ProtectedRoute>} />
         <Route path="/circles/:circleId/request-management" element={<ProtectedRoute><CircleRequestManagement /></ProtectedRoute>} />
         <Route path="/circles/:circleId/chats" element={<ProtectedRoute><CircleChats /></ProtectedRoute>} />
+        <Route path="/circles/:circleId/bi" element={<ProtectedRoute><CircleBI /></ProtectedRoute>} />
         <Route path="/circles/:circleId/participation-plans" element={<ProtectedRoute><CircleParticipationPlans /></ProtectedRoute>} />
         <Route path="/circles/:circleId/participation-history" element={<ProtectedRoute><CircleParticipationHistory /></ProtectedRoute>} />
         <Route path="/circles/:circleId/members" element={<ProtectedRoute><CircleMembers /></ProtectedRoute>} />

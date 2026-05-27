@@ -35,7 +35,7 @@ export default function Login({ initialMode = "login" }: { initialMode?: AuthMod
           password,
         });
         localStorage.setItem("token", data.access_token);
-        navigate("/me");
+        navigate("/home");
         return;
       }
 

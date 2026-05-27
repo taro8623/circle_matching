@@ -1,3 +1,4 @@
+from datetime import date
 from typing import List, Optional
 from uuid import UUID
 
@@ -107,6 +108,7 @@ class SongItemResponse(BaseModel):
 
     # ライブ申請状況
     latest_live_event_name: Optional[str] = None
+    latest_live_event_date: Optional[date] = None
     latest_live_application_status: Optional[str] = None
 
 

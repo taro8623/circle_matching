@@ -8,12 +8,16 @@ from sqlalchemy.orm import Session
 
 from deps import get_db, get_current_user, require_circle_member
 from models import (
-    User, Circle, CircleMember, CircleMemberPermission, CircleAdminActionLog, SongRequest, SongRecruitingPart, UserPart,
+    User, Circle, CircleMember, CircleMemberPermission, CircleAdminActionLog,
+    SongRequest, SongRecruitingPart, UserPart, SongPartEntry, SongLiveApplication, LiveEvent,
 )
 from schemas.circle import (
     CircleCreate, CircleJoinRequest, CircleDetailResponse,
     MemberResponse, SongSummary,
     CircleAdminActionLogResponse,
+    CircleBIResponse,
+    CircleBIMemberStatResponse,
+    CircleBIPopularArtistResponse,
     CirclePermissionAssigneeResponse,
     CirclePermissionItemResponse,
     CirclePermissionMemberSummaryResponse,
@@ -163,7 +167,14 @@ def get_circle_detail(
             r.part for r in db.query(UserPart).filter(UserPart.user_id == u.id).all()
         ]
         member_list.append(
-            MemberResponse(id=u.id, name=u.name, parts=parts, bio=u.bio, role=cm.role)
+            MemberResponse(
+                id=u.id,
+                name=u.name,
+                parts=parts,
+                bio=u.bio,
+                favorite_artists=u.favorite_artists or [],
+                role=cm.role,
+            )
         )
 
     # 曲一覧(サマリのみ)
@@ -193,6 +204,108 @@ def get_circle_detail(
         description=circle.description,
         members=member_list,
         songs=song_list,
+    )
+
+
+@router.get("/{circle_id}/bi", response_model=CircleBIResponse)
+def get_circle_bi(
+    circle_id: UUID = Path(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    circle = db.query(Circle).filter(Circle.id == circle_id).first()
+    if not circle:
+        raise HTTPException(status_code=404, detail="Circle not found")
+    require_circle_member(db, circle_id, current_user.id)
+
+    active_members = (
+        db.query(CircleMember, User)
+        .join(User, CircleMember.user_id == User.id)
+        .filter(
+            CircleMember.circle_id == circle_id,
+            CircleMember.left_at.is_(None),
+        )
+        .all()
+    )
+    member_count = len(active_members)
+
+    artist_counts: dict[str, int] = {}
+    for _, user in active_members:
+        for artist in user.favorite_artists or []:
+            normalized = artist.strip()
+            if not normalized:
+                continue
+            artist_counts[normalized] = artist_counts.get(normalized, 0) + 1
+    popular_artists = [
+        CircleBIPopularArtistResponse(artist_name=artist_name, member_count=count)
+        for artist_name, count in sorted(
+            artist_counts.items(),
+            key=lambda item: (-item[1], item[0]),
+        )[:15]
+    ]
+
+    completed_live_ids = [
+        live_event_id
+        for live_event_id, in (
+            db.query(LiveEvent.id)
+            .filter(
+                LiveEvent.circle_id == circle_id,
+                LiveEvent.lifecycle_status == "completed",
+            )
+            .all()
+        )
+    ]
+    completed_live_count = len(completed_live_ids)
+
+    member_appearance_map: dict[UUID, set[UUID]] = {
+        user.id: set() for _, user in active_members
+    }
+    if completed_live_ids:
+        appearance_rows = (
+            db.query(SongPartEntry.user_id, LiveEvent.id)
+            .join(SongRequest, SongPartEntry.song_request_id == SongRequest.id)
+            .join(SongLiveApplication, SongLiveApplication.song_request_id == SongRequest.id)
+            .join(LiveEvent, SongLiveApplication.live_event_id == LiveEvent.id)
+            .filter(
+                SongRequest.circle_id == circle_id,
+                SongPartEntry.status == "accepted",
+                SongPartEntry.user_id.in_(list(member_appearance_map.keys())),
+                SongLiveApplication.status == "approved",
+                LiveEvent.id.in_(completed_live_ids),
+            )
+            .distinct()
+            .all()
+        )
+        for user_id, live_event_id in appearance_rows:
+            member_appearance_map.setdefault(user_id, set()).add(live_event_id)
+
+    member_stats = []
+    for _, user in active_members:
+        appearance_count = len(member_appearance_map.get(user.id, set()))
+        participation_rate = (
+            round((appearance_count / completed_live_count) * 100, 1)
+            if completed_live_count > 0
+            else 0.0
+        )
+        member_stats.append(
+            CircleBIMemberStatResponse(
+                user_id=user.id,
+                user_name=user.name,
+                appearance_count=appearance_count,
+                participation_rate=participation_rate,
+            )
+        )
+    member_stats.sort(
+        key=lambda item: (-item.appearance_count, -item.participation_rate, item.user_name)
+    )
+
+    return CircleBIResponse(
+        circle_id=circle.id,
+        circle_name=circle.name,
+        member_count=member_count,
+        completed_live_count=completed_live_count,
+        popular_artists=popular_artists,
+        member_stats=member_stats,
     )
 
 
