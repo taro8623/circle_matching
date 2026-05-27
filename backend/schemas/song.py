@@ -140,6 +140,18 @@ class PublicSongSearchResponse(BaseModel):
     results: List[PublicSongSearchItemResponse] = []
 
 
+class PublicArtistSearchItemResponse(BaseModel):
+    artist_name: str
+    artwork_url: Optional[str] = None
+    artist_view_url: Optional[str] = None
+    primary_genre_name: Optional[str] = None
+
+
+class PublicArtistSearchResponse(BaseModel):
+    query: str
+    results: List[PublicArtistSearchItemResponse] = []
+
+
 # -------- 応募 / オファー --------
 class ApplicationCreateRequest(BaseModel):
     """応募 (user→song)"""

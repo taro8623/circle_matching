@@ -18,7 +18,8 @@ from models import (
 from schemas.song import (
     SongCreateRequest, SongUpdateRequest, SongStatusUpdateRequest,
     SongItemResponse, CircleSongsForMeResponse, PublicSongSearchResponse,
-    PublicSongSearchItemResponse,
+    PublicSongSearchItemResponse, PublicArtistSearchResponse,
+    PublicArtistSearchItemResponse,
 )
 from services.song_builder import build_song_item, ensure_chat_room, add_chat_participant
 from services.circle_permissions import get_effective_circle_permission_keys
@@ -62,6 +63,41 @@ def search_public_songs(
         if item.get("trackName") and item.get("artistName")
     ]
     return PublicSongSearchResponse(query=query, results=results)
+
+
+@router.get("/artists/public-search", response_model=PublicArtistSearchResponse)
+def search_public_artists(
+    q: str = Query(..., min_length=1),
+    current_user: User = Depends(get_current_user),
+):
+    query = q.strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="検索キーワードを入力してください")
+
+    params = urlencode({
+        "term": query,
+        "entity": "musicArtist",
+        "limit": 12,
+        "country": "JP",
+    })
+    url = f"https://itunes.apple.com/search?{params}"
+    try:
+        with urlopen(url, timeout=10) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except URLError:
+        raise HTTPException(status_code=502, detail="アーティスト検索に失敗しました")
+
+    results = [
+        PublicArtistSearchItemResponse(
+            artist_name=item.get("artistName", ""),
+            artwork_url=item.get("artworkUrl100"),
+            artist_view_url=item.get("artistLinkUrl") or item.get("artistViewUrl"),
+            primary_genre_name=item.get("primaryGenreName"),
+        )
+        for item in payload.get("results", [])
+        if item.get("artistName")
+    ]
+    return PublicArtistSearchResponse(query=query, results=results)
 
 
 # ------------------- 曲起票 -------------------

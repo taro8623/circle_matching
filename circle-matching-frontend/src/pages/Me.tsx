@@ -9,6 +9,7 @@ type MeResponse = {
   name: string;
   parts: string[];
   bio?: string | null;
+  favorite_artists?: string[];
 };
 
 type CircleSummary = {
@@ -22,10 +23,19 @@ export default function MePage() {
   const [circles, setCircles] = useState<CircleSummary[]>([]);
   const [parts, setParts] = useState<string[]>([]);
   const [bio, setBio] = useState("");
+  const [favoriteArtists, setFavoriteArtists] = useState<string[]>([]);
+  const [artistSearchKeyword, setArtistSearchKeyword] = useState("");
+  const [artistSearchResults, setArtistSearchResults] = useState<Array<{
+    artist_name: string;
+    artwork_url?: string | null;
+    artist_view_url?: string | null;
+    primary_genre_name?: string | null;
+  }>>([]);
   const [customPart, setCustomPart] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [searchingArtists, setSearchingArtists] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -37,6 +47,7 @@ export default function MePage() {
         setUserName(me.name || "");
         setParts(Array.isArray(me.parts) ? me.parts : []);
         setBio(me.bio ?? "");
+        setFavoriteArtists(Array.isArray(me.favorite_artists) ? me.favorite_artists : []);
         setCircles(Array.isArray(myCircles) ? myCircles : []);
       } catch {
         setError("プロフィール取得に失敗しました");
@@ -72,10 +83,11 @@ export default function MePage() {
     try {
       setSaving(true);
       const [profile, partsResponse] = await Promise.all([
-        api.put<MeResponse>("/me/profile", { bio: normalizedBio }),
+        api.put<MeResponse>("/me/profile", { bio: normalizedBio, favorite_artists: favoriteArtists }),
         api.put<{ parts: string[] }>("/me/parts", { parts }),
       ]);
       setBio(profile.bio ?? normalizedBio);
+      setFavoriteArtists(Array.isArray(profile.favorite_artists) ? profile.favorite_artists : favoriteArtists);
       setParts(partsResponse.parts || parts);
       setProfileMessage("プロフィールを保存しました");
     } catch (err) {
@@ -88,6 +100,44 @@ export default function MePage() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/login");
+  };
+
+  const searchArtists = async () => {
+    const query = artistSearchKeyword.trim();
+    if (!query) {
+      setError("アーティスト検索キーワードを入力してください");
+      return;
+    }
+    setSearchingArtists(true);
+    setError("");
+    try {
+      const response = await api.get<{
+        query: string;
+        results: Array<{
+          artist_name: string;
+          artwork_url?: string | null;
+          artist_view_url?: string | null;
+          primary_genre_name?: string | null;
+        }>;
+      }>(`/artists/public-search?q=${encodeURIComponent(query)}`);
+      setArtistSearchResults(response.results);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "アーティスト検索に失敗しました");
+    } finally {
+      setSearchingArtists(false);
+    }
+  };
+
+  const addFavoriteArtist = (artistName: string) => {
+    const normalized = artistName.trim();
+    if (!normalized || favoriteArtists.includes(normalized)) return;
+    setFavoriteArtists((current) => [...current, normalized]);
+    setProfileMessage("");
+  };
+
+  const removeFavoriteArtist = (artistName: string) => {
+    setFavoriteArtists((current) => current.filter((artist) => artist !== artistName));
+    setProfileMessage("");
   };
 
   return (
@@ -108,6 +158,104 @@ export default function MePage() {
         rows={5}
         style={{ width: "100%", maxWidth: 640, padding: "10px 12px", marginBottom: 16 }}
       />
+      <h3>好きなアーティスト</h3>
+      <p style={{ color: "#6b7280", marginTop: 0 }}>
+        自己紹介とは別に登録できます。検索して何件でも追加できます。
+      </p>
+      <div style={{ display: "grid", gap: 10, maxWidth: 720, marginBottom: 16 }}>
+        {favoriteArtists.length > 0 ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {favoriteArtists.map((artist) => (
+              <span
+                key={artist}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  border: "1px solid #bfdbfe",
+                  borderRadius: 999,
+                  padding: "6px 10px",
+                  background: "#eff6ff",
+                  color: "#1d4ed8",
+                }}
+              >
+                {artist}
+                <button
+                  type="button"
+                  onClick={() => removeFavoriteArtist(artist)}
+                  style={{ border: "none", background: "transparent", color: "#1d4ed8", cursor: "pointer", padding: 0 }}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: "#6b7280", margin: 0 }}>まだ登録していません</p>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+          <input
+            value={artistSearchKeyword}
+            onChange={(event) => setArtistSearchKeyword(event.target.value)}
+            placeholder="好きなアーティストを検索"
+            style={{ padding: "10px 12px" }}
+          />
+          <button type="button" onClick={searchArtists} disabled={searchingArtists || !artistSearchKeyword.trim()}>
+            {searchingArtists ? "検索中..." : "検索"}
+          </button>
+        </div>
+        {artistSearchResults.length > 0 && (
+          <div style={{ display: "grid", gap: 8 }}>
+            {artistSearchResults.map((artist) => (
+              <button
+                key={`${artist.artist_name}-${artist.artist_view_url || ""}`}
+                type="button"
+                onClick={() => addFavoriteArtist(artist.artist_name)}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: artist.artwork_url ? "56px minmax(0, 1fr) auto" : "minmax(0, 1fr) auto",
+                  gap: 12,
+                  alignItems: "center",
+                  border: "1px solid #dbeafe",
+                  borderRadius: 10,
+                  padding: 12,
+                  background: "#f8fbff",
+                  textAlign: "left",
+                  cursor: "pointer",
+                }}
+              >
+                {artist.artwork_url && (
+                  <img
+                    src={artist.artwork_url}
+                    alt=""
+                    style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, background: "#e5e7eb" }}
+                  />
+                )}
+                <div>
+                  <strong>{artist.artist_name}</strong>
+                  {artist.primary_genre_name && (
+                    <p style={{ margin: "4px 0 0", color: "#4b5563", fontSize: 14 }}>{artist.primary_genre_name}</p>
+                  )}
+                </div>
+                <span
+                  style={{
+                    border: "1px solid #bfdbfe",
+                    borderRadius: 999,
+                    padding: "6px 10px",
+                    color: "#1d4ed8",
+                    background: "#eff6ff",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  追加
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       <h3>担当パート</h3>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
         {PART_OPTIONS.map((part) => (
