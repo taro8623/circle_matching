@@ -4,9 +4,11 @@ import { api } from "../api";
 
 type AuthMode = "login" | "signup";
 type LoginResponse = { access_token: string; token_type: string };
+const PUBLIC_SIGNUP_ENABLED =
+  (import.meta.env.VITE_PUBLIC_SIGNUP_ENABLED ?? "false").toLowerCase() === "true";
 
 export default function Login({ initialMode = "login" }: { initialMode?: AuthMode }) {
-  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [mode, setMode] = useState<AuthMode>(PUBLIC_SIGNUP_ENABLED ? initialMode : "login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,6 +19,9 @@ export default function Login({ initialMode = "login" }: { initialMode?: AuthMod
   const navigate = useNavigate();
 
   const switchMode = (nextMode: AuthMode) => {
+    if (nextMode === "signup" && !PUBLIC_SIGNUP_ENABLED) {
+      return;
+    }
     setMode(nextMode);
     setError("");
     setMessage("");
@@ -37,6 +42,10 @@ export default function Login({ initialMode = "login" }: { initialMode?: AuthMod
         localStorage.setItem("token", data.access_token);
         navigate("/home");
         return;
+      }
+
+      if (!PUBLIC_SIGNUP_ENABLED) {
+        throw new Error("現在は公開デモ中のため新規登録を停止しています");
       }
 
       await api.post("/signup", {
@@ -65,13 +74,17 @@ export default function Login({ initialMode = "login" }: { initialMode?: AuthMod
           >
             ログイン
           </button>
-          <button
-            type="button"
-            onClick={() => switchMode("signup")}
-            style={mode === "signup" ? styles.activeTab : styles.tab}
-          >
-            新規登録
-          </button>
+          {PUBLIC_SIGNUP_ENABLED ? (
+            <button
+              type="button"
+              onClick={() => switchMode("signup")}
+              style={mode === "signup" ? styles.activeTab : styles.tab}
+            >
+              新規登録
+            </button>
+          ) : (
+            <div style={styles.disabledTab}>新規登録停止中</div>
+          )}
         </div>
 
         <h2 style={styles.title}>{mode === "login" ? "ログイン" : "新規登録"}</h2>
@@ -113,6 +126,11 @@ export default function Login({ initialMode = "login" }: { initialMode?: AuthMod
 
         {message && <p style={styles.message}>{message}</p>}
         {error && <p style={styles.error}>{error}</p>}
+        {!PUBLIC_SIGNUP_ENABLED && (
+          <p style={styles.notice}>
+            現在は公開デモ中のため新規登録を停止しています。テスト用ユーザーでログインしてください。
+          </p>
+        )}
       </div>
     </main>
   );
@@ -157,6 +175,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#fff",
     cursor: "pointer",
   },
+  disabledTab: {
+    padding: "10px 12px",
+    borderRadius: "999px",
+    border: "1px solid #cbd5e1",
+    background: "#f8fafc",
+    color: "#64748b",
+    textAlign: "center",
+  },
   title: {
     margin: "0 0 16px",
     fontSize: "28px",
@@ -191,5 +217,10 @@ const styles: Record<string, React.CSSProperties> = {
   message: {
     marginTop: "14px",
     color: "#15803d",
+  },
+  notice: {
+    marginTop: "14px",
+    color: "#475569",
+    whiteSpace: "pre-wrap",
   },
 };

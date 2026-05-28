@@ -1,0 +1,47 @@
+databases:
+  - name: circle-matching-db
+    databaseName: circle_matching
+    user: circle_matching
+    plan: free
+
+services:
+  - type: web
+    name: circle-matching-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: bash start_render.sh
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: circle-matching-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PUBLIC_SIGNUP_ENABLED
+        value: "false"
+      - key: ROOTS_DEMO_PASSWORD
+        value: "RootsDemo2026!"
+      - key: ROOTS_CIRCLE_NAME
+        value: "roots"
+      - key: ROOTS_CIRCLE_JOIN_PASSWORD
+        value: "roots-demo"
+      - key: CORS_ALLOW_ORIGINS
+        value: "https://circle-matching-web.onrender.com"
+
+  - type: web
+    name: circle-matching-web
+    runtime: static
+    rootDir: circle-matching-frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: "https://circle-matching-api.onrender.com"
+      - key: VITE_PUBLIC_SIGNUP_ENABLED
+        value: "false"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

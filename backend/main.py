@@ -5,6 +5,7 @@ FastAPI アプリのエントリポイント。
 - DB初期化は Alembic に委譲 (alembic upgrade head)
 """
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,14 +17,21 @@ from routers import (
 
 app = FastAPI(title="Circle Matching API")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+
+def get_allowed_origins() -> list[str]:
+    defaults = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:5174",
         "http://127.0.0.1:5174",
-    ],
+    ]
+    raw = os.environ.get("CORS_ALLOW_ORIGINS", "")
+    configured = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return list(dict.fromkeys([*defaults, *configured]))
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

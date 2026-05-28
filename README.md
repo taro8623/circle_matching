@@ -6,6 +6,23 @@
 
 現在の実装だけでも、**ユーザー登録 → サークル参加 → 担当パート設定 → 曲起票 → 応募 / お誘い → メンバー確定 → チャット → ライブ申請 → 通知確認**まで、一連の流れをローカル環境で動かせます。
 
+## 公開デモ運用メモ
+
+- 公開デモでは **新規ユーザー登録を停止中** です。
+- テスト用ユーザーの共通パスワードは **`RootsDemo2026!`** です。
+- デモ環境の **DB内容は定期的に消去 / 再投入** します。
+- 個人情報や消したくないデータの登録は想定していません。
+- お問い合わせ・機能要望は [Googleフォーム](https://docs.google.com/forms/d/e/1FAIpQLScPIYWK9lXV2DXWaxtnrlg07gb7_TuEP5Gq07Fj7OOPqUy9KA/viewform) から受け付けています。
+- 新規登録を再開する場合は、バックエンドで `PUBLIC_SIGNUP_ENABLED=true`、フロントエンドで `VITE_PUBLIC_SIGNUP_ENABLED=true` を設定して再デプロイしてください。
+
+## Render デプロイ
+
+- `render.yaml` を用意してあるので、Render の **Blueprint** からそのまま作成できます。
+- 作成される構成は **PostgreSQL + FastAPI API + Vite 静的フロント** です。
+- API 起動時に `alembic upgrade head` と `python seed_roots_demo_users.py` を実行し、公開デモ用の `roots` サークルとテストユーザーを自動投入します。
+- フロントは `https://circle-matching-web.onrender.com`、API は `https://circle-matching-api.onrender.com` を前提にしています。
+- デモデータを戻したい場合は、バックエンド環境で `python reset_demo_data.py && python seed_roots_demo_users.py` を実行してください。
+
 ## このアプリで解決したい課題
 
 バンドサークルでは、以下のような情報が分散しがちです。
@@ -22,7 +39,7 @@
 
 ### 1. 認証 / マイページ
 
-- メールアドレスとパスワードで新規登録
+- メールアドレスとパスワードで新規登録（ローカルでは利用可能。公開デモでは停止中）
 - ログイン時に JWT を発行
 - フロント側でトークンを保持し、保護ルートを制御
 - `/me` でログインユーザー情報を取得
@@ -196,7 +213,7 @@
 | --- | --- |
 | Frontend | React, TypeScript, Vite, React Router |
 | Backend | FastAPI, SQLAlchemy |
-| Auth | JWT, OAuth2PasswordBearer, bcrypt/passlib |
+| Auth | JWT, OAuth2PasswordBearer, bcrypt |
 | Database | PostgreSQL（`DATABASE_URL` で切り替え） |
 | Migration | Alembic |
 

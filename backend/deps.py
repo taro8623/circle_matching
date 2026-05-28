@@ -6,6 +6,7 @@ FastAPI 依存関数。
 - get_current_circle_member: 所属(left_at IS NULL)を返す
 """
 
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
@@ -13,7 +14,7 @@ from uuid import UUID
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
@@ -24,20 +25,22 @@ from services.circle_permissions import require_circle_permission
 # -------------------------
 # JWT / パスワード
 # -------------------------
-SECRET_KEY = "your_secret_key_here"        # TODO: env変数化
+SECRET_KEY = os.environ.get("SECRET_KEY", "your_secret_key_here")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(
+        plain_password.encode("utf-8"),
+        hashed_password.encode("utf-8"),
+    )
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
