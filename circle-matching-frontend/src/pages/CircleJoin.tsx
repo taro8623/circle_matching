@@ -34,7 +34,7 @@ export default function CircleJoin() {
           type="text"
           value={circleName}
           onChange={(e) => setCircleName(e.target.value)}
-          placeholder="例: roots"
+          placeholder="例: Circle Matching Demo"
           style={styles.input}
           required
         />

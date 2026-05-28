@@ -21,12 +21,12 @@ services:
         generateValue: true
       - key: PUBLIC_SIGNUP_ENABLED
         value: "false"
-      - key: ROOTS_DEMO_PASSWORD
-        value: "RootsDemo2026!"
-      - key: ROOTS_CIRCLE_NAME
-        value: "roots"
-      - key: ROOTS_CIRCLE_JOIN_PASSWORD
-        value: "roots-demo"
+      - key: DEMO_USER_PASSWORD
+        value: "CircleDemo2026!"
+      - key: DEMO_CIRCLE_NAME
+        value: "Circle Matching Demo"
+      - key: DEMO_CIRCLE_JOIN_PASSWORD
+        value: "circle-demo"
       - key: CORS_ALLOW_ORIGINS
         value: "https://circle-matching-web.onrender.com"
 

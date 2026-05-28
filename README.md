@@ -9,7 +9,7 @@
 ## 公開デモ運用メモ
 
 - 公開デモでは **新規ユーザー登録を停止中** です。
-- テスト用ユーザーの共通パスワードは **`RootsDemo2026!`** です。
+- テスト用ユーザーの共通パスワードは **`CircleDemo2026!`** です。
 - デモ環境の **DB内容は定期的に消去 / 再投入** します。
 - 個人情報や消したくないデータの登録は想定していません。
 - お問い合わせ・機能要望は [Googleフォーム](https://docs.google.com/forms/d/e/1FAIpQLScPIYWK9lXV2DXWaxtnrlg07gb7_TuEP5Gq07Fj7OOPqUy9KA/viewform) から受け付けています。
@@ -19,9 +19,9 @@
 
 - `render.yaml` を用意してあるので、Render の **Blueprint** からそのまま作成できます。
 - 作成される構成は **PostgreSQL + FastAPI API + Vite 静的フロント** です。
-- API 起動時に `alembic upgrade head` と `python seed_roots_demo_users.py` を実行し、公開デモ用の `roots` サークルとテストユーザーを自動投入します。
+- API 起動時に `alembic upgrade head` と `python seed_demo_users.py` を実行し、公開デモ用のサークルとテストユーザーを自動投入します。
 - フロントは `https://circle-matching-web.onrender.com`、API は `https://circle-matching-api.onrender.com` を前提にしています。
-- デモデータを戻したい場合は、バックエンド環境で `python reset_demo_data.py && python seed_roots_demo_users.py` を実行してください。
+- デモデータを戻したい場合は、バックエンド環境で `python reset_demo_data.py && python seed_demo_users.py` を実行してください。
 
 ## このアプリで解決したい課題
 
