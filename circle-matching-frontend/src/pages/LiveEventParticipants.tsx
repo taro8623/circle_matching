@@ -9,13 +9,15 @@ type LiveEventParticipantAssignment = {
   part: string;
 };
 
+type PaymentStatus = "unpaid" | "same_day_planned" | "exempt" | "paid";
+
 type LiveEventParticipant = {
   participant_type: "circle_member" | "external_member";
   participant_key: string;
   user_id?: string | null;
   display_name: string;
   circle_role?: string | null;
-  payment_status?: "unpaid" | "paid";
+  payment_status?: PaymentStatus;
   profile_parts: string[];
   assignments: LiveEventParticipantAssignment[];
 };
@@ -44,8 +46,10 @@ const ROLE_LABELS: Record<string, string> = {
   member: "メンバー",
 };
 
-const PAYMENT_STATUS_LABELS: Record<"unpaid" | "paid", string> = {
+const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   unpaid: "未決済",
+  same_day_planned: "当日払い予定",
+  exempt: "支払不要",
   paid: "決済完了",
 };
 
@@ -73,7 +77,7 @@ export default function LiveEventParticipants() {
 
   const updatePaymentStatus = async (
     participant: LiveEventParticipant,
-    paymentStatus: "unpaid" | "paid"
+    paymentStatus: PaymentStatus
   ) => {
     if (!eventId) return;
     const key = `${participant.participant_type}:${participant.participant_key}`;
@@ -135,7 +139,7 @@ export default function LiveEventParticipants() {
           ) : (
             <div style={styles.list}>
               {data.participants.map((participant) => {
-                const paymentStatus = participant.payment_status || "unpaid";
+                const paymentStatus: PaymentStatus = participant.payment_status || "unpaid";
                 const participantBusyKey = `${participant.participant_type}:${participant.participant_key}`;
                 return (
                   <section
@@ -163,21 +167,19 @@ export default function LiveEventParticipants() {
                             onChange={(e) =>
                               updatePaymentStatus(
                                 participant,
-                                e.target.value as "unpaid" | "paid"
+                                e.target.value as PaymentStatus
                               )
                             }
                             style={styles.select}
                           >
                             <option value="unpaid">未決済</option>
+                            <option value="same_day_planned">当日払い予定</option>
+                            <option value="exempt">支払不要</option>
                             <option value="paid">決済完了</option>
                           </select>
                         ) : (
                           <span
-                            style={
-                              paymentStatus === "paid"
-                                ? styles.paidBadge
-                                : styles.unpaidBadge
-                            }
+                            style={PAYMENT_STATUS_STYLES[paymentStatus]}
                           >
                             {PAYMENT_STATUS_LABELS[paymentStatus]}
                           </span>
@@ -285,6 +287,24 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
     fontWeight: 700,
   },
+  sameDayBadge: {
+    border: "1px solid #fde68a",
+    borderRadius: 999,
+    padding: "4px 10px",
+    background: "#fffbeb",
+    color: "#92400e",
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  exemptBadge: {
+    border: "1px solid #d8b4fe",
+    borderRadius: 999,
+    padding: "4px 10px",
+    background: "#faf5ff",
+    color: "#7e22ce",
+    fontSize: 12,
+    fontWeight: 700,
+  },
   paidBadge: {
     border: "1px solid #bbf7d0",
     borderRadius: 999,
@@ -324,4 +344,11 @@ const styles: Record<string, React.CSSProperties> = {
   emptyTitle: { margin: "0 0 6px", fontWeight: 700, color: "#334155" },
   emptyText: { margin: 0, color: "#64748b" },
   error: { color: "#dc2626", marginTop: 16 },
+};
+
+const PAYMENT_STATUS_STYLES: Record<PaymentStatus, React.CSSProperties> = {
+  unpaid: styles.unpaidBadge,
+  same_day_planned: styles.sameDayBadge,
+  exempt: styles.exemptBadge,
+  paid: styles.paidBadge,
 };

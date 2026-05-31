@@ -26,78 +26,41 @@ export default function CircleJoin() {
   }
 
   return (
-    <div style={styles.container}>
-      <h2 style={styles.title}>サークル参加</h2>
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <label style={styles.label}>サークル名</label>
-        <input
-          type="text"
-          value={circleName}
-          onChange={(e) => setCircleName(e.target.value)}
-          placeholder="例: Circle Matching Demo"
-          style={styles.input}
-          required
-        />
-        <label style={styles.label}>サークル参加パスワード</label>
-        <input
-          type="password"
-          value={circlePassword}
-          onChange={(e) => setCirclePassword(e.target.value)}
-          style={styles.input}
-          required
-        />
-        <button type="submit" style={styles.button}>
-          参加する
-        </button>
-      </form>
-      {message && <div style={{ color: "green", marginTop: 10 }}>{message}</div>}
-      {error && <div style={{ color: "red", marginTop: 10 }}>{error}</div>}
-      <p style={styles.linkText}>
-        <span onClick={() => navigate(-1)} style={{ cursor: "pointer" }}>
-          前のページに戻る
-        </span>
-      </p>
-    </div>
+    <main className="container" style={{ minHeight: "80vh", display: "grid", placeItems: "center" }}>
+      <div className="card" style={{ width: "min(400px, 100%)" }}>
+        <h2 className="h2" style={{ textAlign: "center", marginBottom: "24px" }}>🤝 サークルに参加</h2>
+        <form onSubmit={handleSubmit} className="flex-col">
+          <div>
+            <label className="text-subtle" style={{ fontSize: "0.9rem", display: "block", marginBottom: "4px" }}>サークル名</label>
+            <input
+              type="text"
+              value={circleName}
+              onChange={(e) => setCircleName(e.target.value)}
+              placeholder="例: Circle Matching Demo"
+              required
+            />
+          </div>
+          <div>
+            <label className="text-subtle" style={{ fontSize: "0.9rem", display: "block", marginBottom: "4px" }}>参加パスワード</label>
+            <input
+              type="password"
+              value={circlePassword}
+              onChange={(e) => setCirclePassword(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" className="btn-primary mt-md">
+            参加する
+          </button>
+        </form>
+        {message && <p className="mt-md" style={{ color: "var(--color-success)", textAlign: "center" }}>{message}</p>}
+        {error && <p className="mt-md text-error" style={{ textAlign: "center" }}>{error}</p>}
+        <div className="mt-lg" style={{ textAlign: "center" }}>
+          <button className="btn-ghost" onClick={() => navigate(-1)}>
+            ← 戻る
+          </button>
+        </div>
+      </div>
+    </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    maxWidth: "400px",
-    margin: "40px auto",
-    padding: "20px",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    background: "#fff",
-  },
-  title: {
-    textAlign: "center",
-    marginBottom: "20px",
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
-  },
-  label: {
-    fontWeight: "bold",
-  },
-  input: {
-    padding: "10px",
-    borderRadius: "4px",
-    border: "1px solid #ccc",
-  },
-  button: {
-    marginTop: "10px",
-    padding: "12px",
-    background: "#007bff",
-    color: "#fff",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-  },
-  linkText: {
-    marginTop: "20px",
-    textAlign: "center",
-  },
-};

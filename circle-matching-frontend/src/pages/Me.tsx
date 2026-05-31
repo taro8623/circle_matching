@@ -89,7 +89,7 @@ export default function MePage() {
       setBio(profile.bio ?? normalizedBio);
       setFavoriteArtists(Array.isArray(profile.favorite_artists) ? profile.favorite_artists : favoriteArtists);
       setParts(partsResponse.parts || parts);
-      setProfileMessage("プロフィールを保存しました");
+      setProfileMessage("プロフィールを保存しました！ ✨");
     } catch (err) {
       setError(err instanceof Error ? err.message : "プロフィールの保存に失敗しました");
     } finally {
@@ -104,10 +104,7 @@ export default function MePage() {
 
   const searchArtists = async () => {
     const query = artistSearchKeyword.trim();
-    if (!query) {
-      setError("アーティスト検索キーワードを入力してください");
-      return;
-    }
+    if (!query) return;
     setSearchingArtists(true);
     setError("");
     try {
@@ -141,197 +138,152 @@ export default function MePage() {
   };
 
   return (
-    <div style={{ padding: "20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-        <h2>{userName || "..."} さんのプロフィール</h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <button type="button" onClick={() => navigate("/home")}>ホーム</button>
-          <NotificationButton />
-        </div>
+    <main className="container">
+      <div className="flex-row justify-between">
+        <button className="btn-ghost" onClick={() => navigate("/home")}>← ホーム</button>
+        <NotificationButton />
       </div>
-      <hr />
-      <h3>自己紹介 <span style={{ color: "#dc2626" }}>*必須</span></h3>
-      <p style={{ color: "#6b7280", marginTop: 0 }}>
-        ここに書いた内容は、他のメンバーがメンバー一覧を見るときにも表示されます。
-      </p>
-      <textarea
-        value={bio}
-        onChange={(event) => setBio(event.target.value)}
-        placeholder="担当パート、好きなジャンル、やりたい曲の方向性などを書いてください"
-        rows={5}
-        style={{ width: "100%", maxWidth: 640, padding: "10px 12px", marginBottom: 16 }}
-      />
-      <h3>好きなアーティスト</h3>
-      <p style={{ color: "#6b7280", marginTop: 0 }}>
-        自己紹介とは別に登録できます。検索して何件でも追加できます。
-      </p>
-      <div style={{ display: "grid", gap: 10, maxWidth: 720, marginBottom: 16 }}>
-        {favoriteArtists.length > 0 ? (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {favoriteArtists.map((artist) => (
-              <span
-                key={artist}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  border: "1px solid #bfdbfe",
-                  borderRadius: 999,
-                  padding: "6px 10px",
-                  background: "#eff6ff",
-                  color: "#1d4ed8",
-                }}
-              >
-                {artist}
-                <button
-                  type="button"
-                  onClick={() => removeFavoriteArtist(artist)}
-                  style={{ border: "none", background: "transparent", color: "#1d4ed8", cursor: "pointer", padding: 0 }}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p style={{ color: "#6b7280", margin: 0 }}>まだ登録していません</p>
+
+      <div className="mt-lg">
+        <h1 className="h1">{userName || "..."} さんのプロフィール 👤</h1>
+        <p className="text-subtle mt-sm">サークル内でのあなたの表示設定です。</p>
+      </div>
+
+      <section className="card mt-xl">
+        <h2 className="h3">📝 自己紹介 <span className="text-error">*</span></h2>
+        <p className="text-subtle mt-sm" style={{ fontSize: "0.85rem" }}>
+          メンバー一覧などに表示されます。得意なジャンルややりたい曲などを自由に書いてください。
+        </p>
+        <textarea
+          className="mt-md"
+          value={bio}
+          onChange={(event) => setBio(event.target.value)}
+          placeholder="例: ロックとファンクが好きです！週末に活動したいです。"
+          rows={5}
+        />
+      </section>
+
+      <section className="card mt-lg">
+        <h2 className="h3">🎸 担当パート</h2>
+        <p className="text-subtle mt-sm" style={{ fontSize: "0.85rem" }}>募集への応募時に選択できるパートです。</p>
+        <div className="flex-row mt-md" style={{ flexWrap: "wrap", gap: "8px" }}>
+          {PART_OPTIONS.map((part) => (
+            <button
+              key={part}
+              type="button"
+              className={parts.includes(part) ? "btn-primary btn-pill" : "btn-outline btn-pill"}
+              onClick={() => togglePart(part)}
+              style={{ padding: "8px 16px", fontSize: "0.9rem" }}
+            >
+              {part}
+            </button>
+          ))}
+        </div>
+        <div className="flex-row mt-md">
+          <input
+            value={customPart}
+            onChange={(event) => setCustomPart(event.target.value)}
+            placeholder="その他自由入力パート"
+            style={{ flex: 1 }}
+          />
+          <button type="button" className="btn-outline" onClick={addCustomPart}>追加</button>
+        </div>
+        {parts.length > 0 && (
+          <p className="text-subtle mt-md">
+            選択中: <strong>{parts.join(", ")}</strong>
+          </p>
         )}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+      </section>
+
+      <section className="card mt-lg">
+        <h2 className="h3">🎨 好きなアーティスト</h2>
+        <p className="text-subtle mt-sm" style={{ fontSize: "0.85rem" }}>好みの合うメンバーを見つける手がかりになります。</p>
+        
+        <div className="flex-row mt-md" style={{ flexWrap: "wrap", gap: "8px" }}>
+          {favoriteArtists.map((artist) => (
+            <span key={artist} className="badge badge-primary" style={{ padding: "6px 12px", gap: "8px" }}>
+              {artist}
+              <button
+                type="button"
+                onClick={() => removeFavoriteArtist(artist)}
+                style={{ background: "transparent", border: "none", color: "inherit", cursor: "pointer", padding: 0, fontSize: "1.1rem" }}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          {favoriteArtists.length === 0 && <p className="text-subtle" style={{ fontSize: "0.9rem" }}>まだ登録していません</p>}
+        </div>
+
+        <div className="flex-row mt-lg">
           <input
             value={artistSearchKeyword}
             onChange={(event) => setArtistSearchKeyword(event.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && searchArtists()}
             placeholder="好きなアーティストを検索"
-            style={{ padding: "10px 12px" }}
+            style={{ flex: 1 }}
           />
-          <button type="button" onClick={searchArtists} disabled={searchingArtists || !artistSearchKeyword.trim()}>
-            {searchingArtists ? "検索中..." : "検索"}
+          <button type="button" className="btn-primary" onClick={searchArtists} disabled={searchingArtists}>
+            {searchingArtists ? "..." : "検索"}
           </button>
         </div>
+
         {artistSearchResults.length > 0 && (
-          <div style={{ display: "grid", gap: 8 }}>
+          <div className="grid-list mt-md">
             {artistSearchResults.map((artist) => (
               <button
                 key={`${artist.artist_name}-${artist.artist_view_url || ""}`}
                 type="button"
+                className="card card-interactive"
                 onClick={() => addFavoriteArtist(artist.artist_name)}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: artist.artwork_url ? "56px minmax(0, 1fr) auto" : "minmax(0, 1fr) auto",
-                  gap: 12,
-                  alignItems: "center",
-                  border: "1px solid #dbeafe",
-                  borderRadius: 10,
-                  padding: 12,
-                  background: "#f8fbff",
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
+                style={{ padding: "12px", display: "grid", gridTemplateColumns: artist.artwork_url ? "50px 1fr auto" : "1fr auto", gap: "12px", alignItems: "center" }}
               >
                 {artist.artwork_url && (
-                  <img
-                    src={artist.artwork_url}
-                    alt=""
-                    style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 8, background: "#e5e7eb" }}
-                  />
+                  <img src={artist.artwork_url} alt="" style={{ width: 50, height: 50, borderRadius: "8px" }} />
                 )}
-                <div>
-                  <strong>{artist.artist_name}</strong>
-                  {artist.primary_genre_name && (
-                    <p style={{ margin: "4px 0 0", color: "#4b5563", fontSize: 14 }}>{artist.primary_genre_name}</p>
-                  )}
+                <div style={{ textAlign: "left" }}>
+                  <strong style={{ fontSize: "0.9rem" }}>{artist.artist_name}</strong>
+                  <p className="text-subtle" style={{ fontSize: "0.75rem" }}>{artist.primary_genre_name}</p>
                 </div>
-                <span
-                  style={{
-                    border: "1px solid #bfdbfe",
-                    borderRadius: 999,
-                    padding: "6px 10px",
-                    color: "#1d4ed8",
-                    background: "#eff6ff",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  追加
-                </span>
+                <span className="badge badge-outline">追加</span>
               </button>
             ))}
           </div>
         )}
+      </section>
+
+      <div className="mt-xl">
+        <button type="button" className="btn-primary" style={{ width: "100%", padding: "16px" }} onClick={saveProfile} disabled={saving}>
+          {saving ? "保存中..." : "プロフィールを保存する ✨"}
+        </button>
+        {profileMessage && <p className="mt-md" style={{ color: "var(--color-success)", textAlign: "center" }}>{profileMessage}</p>}
+        {error && <p className="mt-md text-error" style={{ textAlign: "center" }}>{error}</p>}
       </div>
-      <h3>担当パート</h3>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-        {PART_OPTIONS.map((part) => (
-          <label
-            key={part}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              border: "1px solid #d1d5db",
-              borderRadius: 8,
-              padding: "8px 10px",
-              background: "#fff",
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={parts.includes(part)}
-              onChange={() => togglePart(part)}
-            />
-            {part}
-          </label>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <input
-          value={customPart}
-          onChange={(event) => setCustomPart(event.target.value)}
-          placeholder="自由入力パート"
-          style={{ padding: "8px 10px" }}
-        />
-        <button type="button" onClick={addCustomPart}>
-          追加
+
+      <section className="card mt-xl" style={{ backgroundColor: "var(--color-bg)" }}>
+        <h2 className="h3">🏠 参加サークル</h2>
+        <div className="grid-list mt-md">
+          {circles.length === 0 ? (
+            <p className="text-subtle">参加しているサークルはありません</p>
+          ) : (
+            circles.map((circle) => (
+              <button key={circle.id} className="btn-outline btn-pill justify-between" onClick={() => navigate(`/circles/${circle.id}`)}>
+                {circle.name} <span>→</span>
+              </button>
+            ))
+          )}
+        </div>
+        <div className="flex-row mt-lg" style={{ flexWrap: "wrap" }}>
+          <button className="btn-ghost" onClick={() => navigate("/circle/join")}>＋ サークルに参加</button>
+          <button className="btn-ghost" onClick={() => navigate("/circle/create")}>＋ 新しく作成</button>
+        </div>
+      </section>
+
+      <div className="mt-xl" style={{ borderTop: "1px solid var(--color-border)", paddingTop: "24px", textAlign: "center" }}>
+        <button onClick={handleLogout} className="btn-danger btn-ghost btn-pill">
+          ログアウトする
         </button>
       </div>
-      {parts.length > 0 && <p>選択中: {parts.join(", ")}</p>}
-      <button type="button" onClick={saveProfile} disabled={saving}>
-        {saving ? "保存中..." : "プロフィールを保存"}
-      </button>
-      {profileMessage && <div style={{ color: "green", marginTop: 8 }}>{profileMessage}</div>}
-      <hr />
-      <h3>参加サークル</h3>
-      {error && <div style={{ color: "red" }}>{error}</div>}
-      <ul>
-        {circles.length === 0 ? (
-          <li>参加サークルはありません</li>
-        ) : (
-          circles.map((circle) => (
-            <li key={circle.id}>
-              <button
-                type="button"
-                onClick={() => navigate(`/circles/${circle.id}`)}
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  color: "#2563eb",
-                  padding: 0,
-                  textDecoration: "underline",
-                }}
-              >
-                {circle.name}
-              </button>
-            </li>
-          ))
-        )}
-      </ul>
-      <button onClick={() => navigate("/circle/join")}>＋ 新規サークル参加</button>
-      <br />
-      <button onClick={() => navigate("/circle/create")}>＋ 新規サークル作成</button>
-      <hr style={{ margin: "20px 0" }} />
-      <button onClick={handleLogout} style={{ color: "red" }}>
-        ログアウト
-      </button>
-    </div>
+    </main>
   );
 }

@@ -102,14 +102,6 @@ export default function SongDetail() {
       setPlannedMonth(s.planned_month || "");
       const m = await api.get<Me>(`/me`);
       setMe(m);
-      // サークル詳細からメンバーリスト
-      const detail = await api.get<{ members: CircleMember[]; id: string }>(
-        `/circles/${s.requested_by_id ? "" : ""}`  // placeholder
-      ).catch(() => null);
-      // circle_id を song から直接取れないので songエンドポイントから推測... → 仕方なくfor-meから取る
-      // simpler: 別エンドポイントで取得 (拡張余地。今は省略)
-      void detail;
-      // ライブ申請
       const apps = await api.get<LiveApplication[]>(`/songs/${songId}/live-applications`).catch(() => []);
       setLiveApps(apps);
     } catch (err) {
@@ -119,16 +111,11 @@ export default function SongDetail() {
 
   useEffect(() => {
     reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [songId]);
 
-  // 起案者である場合のみ、サークルメンバーとライブを取りに行く
   useEffect(() => {
     if (!song || !me) return;
     if (song.requested_by_id !== me.id) return;
-    // サークル詳細からメンバー一覧を取得するために、circle_id が必要
-    // → song エンドポイントの requested_by_id != circle_id なので別途取得が必要
-    // 簡易策: /me/circles から探し出す
     api.get<any[]>(`/me/circles`)
       .then(async (circles) => {
         for (const c of circles) {
@@ -145,7 +132,6 @@ export default function SongDetail() {
               }
               return null;
             }).filter(Boolean) as { month: string; label: string }[];
-            // Remove duplicates
             const unique = Array.from(new Map(suggestions.map(s => [s.month, s])).values());
             setSuggestedMonths(unique);
             break;
@@ -155,32 +141,29 @@ export default function SongDetail() {
       .catch(() => {});
   }, [song, me]);
 
-  if (error) return <main style={styles.page}><button onClick={goBackToCircle}>戻る</button><p style={styles.error}>{error}</p></main>;
-  if (!song || !me) return <main style={styles.page}>読み込み中...</main>;
+  if (error) return (
+    <main className="container">
+      <button className="btn-outline" onClick={goBackToCircle}>戻る</button>
+      <p className="text-error mt-md">{error}</p>
+    </main>
+  );
+  if (!song || !me) return <main className="container">読み込み中...</main>;
 
   const isRequester = song.requested_by_id === me.id;
   const canApply = !isRequester && song.matching_parts.length > 0 && song.status === "recruiting";
   const acceptedEntries = song.entries.filter((entry) => entry.status === "accepted");
 
-  // 既に自分が応募/オファー中の entry
   const myActiveEntry = song.entries.find(
     (e) => e.user_id === me.id && (e.status === "pending" || e.status === "accepted")
   );
 
-  // ----- 各アクション -----
   const submitApplication = async () => {
     if (!applyPart) return;
     setBusy(true);
     try {
-      await api.post(`/songs/${songId}/applications`, {
-        part: applyPart,
-        timing_memo: applyMemo,
-      });
-      setApplyPart("");
-      setApplyMemo("");
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "応募に失敗");
+      await api.post(`/songs/${songId}/applications`, { part: applyPart, timing_memo: applyMemo });
+      setApplyPart(""); setApplyMemo(""); await reload();
+    } catch (err) { setError(err instanceof Error ? err.message : "応募に失敗");
     } finally { setBusy(false); }
   };
 
@@ -188,335 +171,265 @@ export default function SongDetail() {
     if (!offerUserId || !offerPart) return;
     setBusy(true);
     try {
-      await api.post(`/songs/${songId}/offers`, {
-        user_id: offerUserId,
-        part: offerPart,
-      });
-      setOfferUserId("");
-      setOfferPart("");
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "オファーに失敗");
+      await api.post(`/songs/${songId}/offers`, { user_id: offerUserId, part: offerPart });
+      setOfferUserId(""); setOfferPart(""); await reload();
+    } catch (err) { setError(err instanceof Error ? err.message : "オファーに失敗");
     } finally { setBusy(false); }
   };
 
   const updateEntry = async (entryId: string, status: string) => {
     setBusy(true);
-    try {
-      await api.patch(`/entries/${entryId}`, { status });
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "更新失敗");
+    try { await api.patch(`/entries/${entryId}`, { status }); await reload();
+    } catch (err) { setError(err instanceof Error ? err.message : "更新失敗");
     } finally { setBusy(false); }
   };
 
   const updateSongStatus = async (status: string, targetMonth?: string) => {
     setBusy(true);
-    try {
-      await api.patch(`/songs/${songId}/status`, { status, planned_month: targetMonth });
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "状態更新失敗");
+    try { await api.patch(`/songs/${songId}/status`, { status, planned_month: targetMonth }); await reload();
+    } catch (err) { setError(err instanceof Error ? err.message : "状態更新失敗");
     } finally { setBusy(false); }
   };
 
   const submitLiveApplication = async () => {
     if (!selectedEventId) return;
     setBusy(true);
-    try {
-      await api.post(`/songs/${songId}/live-applications`, { live_event_id: selectedEventId });
-      setSelectedEventId("");
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "ライブ申請失敗");
+    try { await api.post(`/songs/${songId}/live-applications`, { live_event_id: selectedEventId }); setSelectedEventId(""); await reload();
+    } catch (err) { setError(err instanceof Error ? err.message : "ライブ申請失敗");
     } finally { setBusy(false); }
   };
 
   const withdrawLiveApplication = async (appId: string) => {
     setBusy(true);
-    try {
-      await api.post(`/live-applications/${appId}/withdraw`);
-      await reload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "取り下げ失敗");
+    try { await api.post(`/live-applications/${appId}/withdraw`); await reload();
+    } catch (err) { setError(err instanceof Error ? err.message : "取り下げ失敗");
     } finally { setBusy(false); }
   };
 
   return (
-    <main style={styles.page}>
-      <button onClick={goBackToCircle}>戻る</button>
+    <main className="container">
+      <button className="btn-ghost" onClick={goBackToCircle}>← 戻る</button>
 
       {/* 曲ヘッダ */}
-      <header style={styles.header}>
-        <h1 style={styles.h1}>{song.title}</h1>
-        <p style={styles.sub}>{song.artist}</p>
-        <p style={styles.meta}>起票者: {song.requested_by}</p>
-        <p style={styles.meta}>状態: <span style={styles.statusBadge}>{song.status}</span></p>
-        {song.reference_url && (
-          <p style={styles.meta}>
-            参考音源: <a href={song.reference_url} target="_blank" rel="noreferrer">開く</a>
-          </p>
-        )}
-        {song.timing_preference_memo && <p style={styles.meta}>時期希望: {song.timing_preference_memo}</p>}
-        {song.memo && <p style={styles.memo}>{song.memo}</p>}
+      <header className="card mt-lg" style={{ borderLeft: "8px solid var(--color-primary)" }}>
+        <div className="flex-row justify-between">
+          <div>
+            <h1 className="h1">{song.title}</h1>
+            <p className="text-subtle mt-sm" style={{ fontSize: "1.2rem" }}>{song.artist}</p>
+          </div>
+          <span className={`badge ${song.status === "ready" ? "badge-primary" : "badge-outline"}`}>
+            {song.status === "ready" ? "✅ メンバー確定" : "🔍 募集中"}
+          </span>
+        </div>
+        <div className="mt-md flex-row" style={{ flexWrap: "wrap", gap: "12px" }}>
+          <p className="text-subtle">👤 起票: {song.requested_by}</p>
+          {song.reference_url && (
+            <a href={song.reference_url} target="_blank" rel="noreferrer" className="btn-outline btn-pill" style={{ padding: "4px 12px", fontSize: "0.8rem" }}>
+              🔗 参考音源
+            </a>
+          )}
+          {song.chat_room_id && (
+            <button onClick={() => navigate(`/songs/${songId}/chat`)} className="btn-primary btn-pill" style={{ padding: "4px 12px", fontSize: "0.8rem" }}>
+              💬 チャット
+            </button>
+          )}
+        </div>
+        {song.timing_preference_memo && <p className="text-subtle mt-sm">📅 時期希望: {song.timing_preference_memo}</p>}
+        {song.memo && <p className="mt-md card" style={{ backgroundColor: "var(--color-bg)", fontSize: "0.9rem" }}>{song.memo}</p>}
       </header>
 
-      {/* 募集パート */}
-      <section style={styles.section}>
-        <h2 style={styles.h2}>募集パート</h2>
-        <ul style={styles.list}>
-          {song.recruiting_parts.map((p) => (
-            <li key={p.part}>
-              {p.part}: {p.accepted_count}/{p.required_count}
-              {p.accepted_count >= p.required_count && " ✓充足"}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {(acceptedEntries.length > 0 || song.external_members.length > 0) && (
-        <section style={styles.section}>
-          <h2 style={styles.h2}>決定済みメンバー</h2>
-          <ul style={styles.list}>
-            {acceptedEntries.map((entry) => (
-              <li key={entry.id}>
-                {entry.part}: {entry.user_name}
-              </li>
-            ))}
-            {song.external_members.map((member) => (
-              <li key={member.id}>
-                {member.part}: {member.member_name} (外部)
+      <div className="grid-list mt-xl" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
+        {/* 募集パート */}
+        <section className="card">
+          <h2 className="h3">📢 募集状況</h2>
+          <ul className="mt-md" style={{ paddingLeft: "18px", color: "var(--color-text)" }}>
+            {song.recruiting_parts.map((p) => (
+              <li key={p.part} style={{ marginBottom: "8px" }}>
+                <strong>{p.part}</strong>: {p.accepted_count}/{p.required_count}
+                {p.accepted_count >= p.required_count && <span style={{ color: "var(--color-success)" }}> ✓充足</span>}
               </li>
             ))}
           </ul>
         </section>
-      )}
 
-      {/* 応募 (ユーザー) */}
+        {/* 決定メンバー */}
+        {(acceptedEntries.length > 0 || song.external_members.length > 0) && (
+          <section className="card">
+            <h2 className="h3">👥 メンバー</h2>
+            <ul className="mt-md" style={{ paddingLeft: "18px", color: "var(--color-text)" }}>
+              {acceptedEntries.map((entry) => (
+                <li key={entry.id} style={{ marginBottom: "8px" }}>
+                  <strong>{entry.part}</strong>: {entry.user_name}
+                </li>
+              ))}
+              {song.external_members.map((member) => (
+                <li key={member.id} style={{ marginBottom: "8px" }}>
+                  <strong>{member.part}</strong>: {member.member_name} (外部)
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+
+      {/* 応募セクション */}
       {!isRequester && (
-        <section style={styles.section}>
-          <h2 style={styles.h2}>このパートに応募する</h2>
-          {myActiveEntry ? (
-            <div>
-              <p>
-                あなたは <strong>{myActiveEntry.part}</strong> に
-                {entryKindLabel(myActiveEntry, song)}中 (状態: {myActiveEntry.status})
-              </p>
-              {myActiveEntry.status === "pending" && (
-                <>
-                  {myActiveEntry.kind === "offer" && (
-                    <>
-                      <button disabled={busy} onClick={() => updateEntry(myActiveEntry.id, "accepted")}>参加する</button>
-                      <button disabled={busy} onClick={() => updateEntry(myActiveEntry.id, "declined")} style={{ marginLeft: 8 }}>辞退</button>
-                    </>
+        <section className="card mt-xl" style={{ backgroundColor: "var(--color-primary-soft)" }}>
+          <h2 className="h3">🤝 参加する</h2>
+          <div className="mt-md">
+            {myActiveEntry ? (
+              <div className="flex-col">
+                <p>
+                  あなたは <strong>{myActiveEntry.part}</strong> に
+                  {entryKindLabel(myActiveEntry, song)}中です（状態: {myActiveEntry.status}）
+                </p>
+                <div className="flex-row">
+                  {myActiveEntry.status === "pending" && myActiveEntry.kind === "offer" && (
+                    <button disabled={busy} onClick={() => updateEntry(myActiveEntry.id, "accepted")} className="btn-primary">参加を承諾</button>
                   )}
-                  <button disabled={busy} onClick={() => updateEntry(myActiveEntry.id, "withdrawn")} style={{ marginLeft: 8 }}>取り下げ</button>
-                </>
-              )}
-            </div>
-          ) : canApply ? (
-            <div style={{ display: "grid", gap: 8, maxWidth: 360 }}>
-              <select value={applyPart} onChange={(e) => setApplyPart(e.target.value)} style={styles.input}>
-                <option value="">パートを選択</option>
-                {song.matching_parts.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-              <textarea
-                placeholder="時期希望メモ(任意)"
-                value={applyMemo}
-                onChange={(e) => setApplyMemo(e.target.value)}
-                style={styles.input}
-                rows={2}
-              />
-              <button disabled={busy || !applyPart} onClick={submitApplication}>応募する</button>
-            </div>
-          ) : (
-            <p style={styles.empty}>応募できるパートがありません(担当パート未設定 or 募集終了)</p>
-          )}
-        </section>
-      )}
-
-      {/* 起案者向け: 応募/オファー一覧 + 承認 */}
-      {isRequester && (
-        <>
-          <section style={styles.section}>
-            <h2 style={styles.h2}>応募・お誘い一覧</h2>
-            {song.entries.length === 0 ? (
-              <p style={styles.empty}>まだ応募/お誘いはありません</p>
-            ) : (
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    <th>ユーザー</th><th>パート</th><th>種別</th><th>状態</th><th>メモ</th><th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {song.entries.map((e) => (
-                    <tr key={e.id}>
-                      <td>{e.user_name}</td>
-                      <td>{e.part}</td>
-                      <td>{entryKindLabel(e, song)}</td>
-                      <td>{e.status}</td>
-                      <td>{e.timing_memo || ""}</td>
-                      <td>
-                        {e.status === "pending" && e.kind === "application" && (
-                          <>
-                            <button disabled={busy} onClick={() => updateEntry(e.id, "accepted")}>承認</button>
-                            <button disabled={busy} onClick={() => updateEntry(e.id, "declined")} style={{ marginLeft: 4 }}>拒否</button>
-                          </>
-                        )}
-                        {e.status === "pending" && e.kind === "offer" && (
-                          <button disabled={busy} onClick={() => updateEntry(e.id, "withdrawn")}>取り下げ</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-
-          {/* オファー送信 */}
-          <section style={styles.section}>
-            <h2 style={styles.h2}>メンバーにお誘い(オファー)を送る</h2>
-            <div style={{ display: "grid", gap: 8, maxWidth: 480 }}>
-              <select value={offerUserId} onChange={(e) => setOfferUserId(e.target.value)} style={styles.input}>
-                <option value="">メンバーを選択</option>
-                {members.filter(m => m.id !== me.id).map((m) => (
-                  <option key={m.id} value={m.id}>{m.name} ({m.parts.join("/") || "未設定"})</option>
-                ))}
-              </select>
-              <select value={offerPart} onChange={(e) => setOfferPart(e.target.value)} style={styles.input}>
-                <option value="">パートを選択</option>
-                {song.recruiting_parts.map((p) => <option key={p.part} value={p.part}>{p.part}</option>)}
-              </select>
-              <button disabled={busy || !offerUserId || !offerPart} onClick={submitOffer}>オファーを送る</button>
-            </div>
-          </section>
-
-          {/* メンバー確定/取り消し */}
-          <section style={styles.section}>
-            <h2 style={styles.h2}>メンバー確定</h2>
-            <div style={{ display: "grid", gap: 12, maxWidth: 360 }}>
-              <div>
-                <label style={{ fontSize: 13, color: "#666" }}>実施予定月 (例: 2026-08)</label>
-                <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                  <input
-                    type="month"
-                    value={plannedMonth}
-                    onChange={(e) => setPlannedMonth(e.target.value)}
-                    style={{ ...styles.input, flex: 1 }}
-                  />
-                  {suggestedMonths.length > 0 && (
-                    <select
-                      onChange={(e) => setPlannedMonth(e.target.value)}
-                      style={{ ...styles.input, width: "auto" }}
-                      value=""
-                    >
-                      <option value="" disabled>予定から選ぶ</option>
-                      {suggestedMonths.map(s => (
-                        <option key={s.month} value={s.month}>{s.label}</option>
-                      ))}
-                    </select>
+                  {myActiveEntry.status === "pending" && (
+                    <button disabled={busy} onClick={() => updateEntry(myActiveEntry.id, "withdrawn")} className="btn-outline">取り消し</button>
                   )}
                 </div>
               </div>
+            ) : canApply ? (
+              <div className="flex-col">
+                <select value={applyPart} onChange={(e) => setApplyPart(e.target.value)}>
+                  <option value="">応募するパートを選択</option>
+                  {song.matching_parts.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <textarea
+                  placeholder="時期希望や意気込みなど（任意）"
+                  value={applyMemo}
+                  onChange={(e) => setApplyMemo(e.target.value)}
+                  rows={2}
+                />
+                <button disabled={busy || !applyPart} onClick={submitApplication} className="btn-primary">応募する！</button>
+              </div>
+            ) : (
+              <p className="text-subtle">応募できるパートがありません（募集終了またはパート未設定）</p>
+            )}
+          </div>
+        </section>
+      )}
 
-              {song.status === "recruiting" && (
-                <button
-                  disabled={busy}
-                  onClick={() => updateSongStatus("ready", plannedMonth)}
-                  style={{ background: "#2563eb", color: "#fff" }}
-                >
-                  この予定でメンバー確定する
-                </button>
-              )}
-              {song.status === "ready" && (
-                <>
-                  <p>このメンバーで確定しています ✓ ({song.planned_month || "実施月未定"})</p>
-                  <button
-                    disabled={busy}
-                    onClick={() => updateSongStatus("ready", plannedMonth)}
-                    style={{ background: "#059669", color: "#fff" }}
-                  >
-                    予定月を更新する
-                  </button>
-                  <button
-                    disabled={busy}
-                    onClick={() => updateSongStatus("recruiting")}
-                    style={{ background: "#ef4444", color: "#fff", marginTop: 8 }}
-                  >
-                    メンバー確定を取り消す
-                  </button>
-                </>
+      {/* 起案者向け管理パネル */}
+      {isRequester && (
+        <div className="mt-xl" style={{ borderTop: "2px dashed var(--color-border)", paddingTop: "32px" }}>
+          <h2 className="h2">🛠️ 管理メニュー</h2>
+          
+          {/* エントリー管理 */}
+          <section className="card mt-lg">
+            <h3 className="h3">📋 応募・お誘い一覧</h3>
+            <div className="mt-md" style={{ overflowX: "auto" }}>
+              {song.entries.length === 0 ? (
+                <p className="text-subtle">まだ応募はありません</p>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
+                  <thead style={{ borderBottom: "2px solid var(--color-border)" }}>
+                    <tr style={{ textAlign: "left" }}>
+                      <th style={{ padding: "8px" }}>名前</th>
+                      <th style={{ padding: "8px" }}>パート</th>
+                      <th style={{ padding: "8px" }}>状態</th>
+                      <th style={{ padding: "8px" }}>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {song.entries.map((e) => (
+                      <tr key={e.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                        <td style={{ padding: "8px" }}>{e.user_name}</td>
+                        <td style={{ padding: "8px" }}>{e.part}</td>
+                        <td style={{ padding: "8px" }}><span className="badge">{e.status}</span></td>
+                        <td style={{ padding: "8px" }}>
+                          {e.status === "pending" && e.kind === "application" && (
+                            <div className="flex-row">
+                              <button disabled={busy} onClick={() => updateEntry(e.id, "accepted")} className="btn-primary" style={{ padding: "4px 8px", fontSize: "0.75rem" }}>承認</button>
+                              <button disabled={busy} onClick={() => updateEntry(e.id, "declined")} className="btn-danger" style={{ padding: "4px 8px", fontSize: "0.75rem" }}>見送り</button>
+                            </div>
+                          )}
+                          {e.status === "pending" && e.kind === "offer" && (
+                            <button disabled={busy} onClick={() => updateEntry(e.id, "withdrawn")} className="btn-outline" style={{ padding: "4px 8px", fontSize: "0.75rem" }}>取り下げ</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
-            {song.status === "archived" && <p>アーカイブ済み</p>}
-            {song.status === "cancelled" && <p>キャンセル済み</p>}
+            
+            <div className="mt-lg" style={{ borderTop: "1px solid var(--color-border)", paddingTop: "16px" }}>
+              <h4 className="h4" style={{ fontSize: "0.9rem" }}>👉 メンバーを誘う</h4>
+              <div className="flex-row mt-sm" style={{ flexWrap: "wrap" }}>
+                <select value={offerUserId} onChange={(e) => setOfferUserId(e.target.value)} style={{ flex: 1 }}>
+                  <option value="">メンバーを選択</option>
+                  {members.filter(m => m.id !== me.id).map((m) => (
+                    <option key={m.id} value={m.id}>{m.name}</option>
+                  ))}
+                </select>
+                <select value={offerPart} onChange={(e) => setOfferPart(e.target.value)} style={{ width: "120px" }}>
+                  <option value="">パート</option>
+                  {song.recruiting_parts.map((p) => <option key={p.part} value={p.part}>{p.part}</option>)}
+                </select>
+                <button disabled={busy || !offerUserId || !offerPart} onClick={submitOffer} className="btn-outline">お誘いを送る</button>
+              </div>
+            </div>
+          </section>
+
+          {/* ステータス管理 */}
+          <section className="card mt-lg">
+            <h3 className="h3">🏁 メンバー確定</h3>
+            <div className="flex-col mt-md">
+              <div className="flex-row">
+                <input
+                  type="month"
+                  value={plannedMonth}
+                  onChange={(e) => setPlannedMonth(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                {suggestedMonths.length > 0 && (
+                  <select onChange={(e) => setPlannedMonth(e.target.value)} value="">
+                    <option value="" disabled>予定から選ぶ</option>
+                    {suggestedMonths.map(s => <option key={s.month} value={s.month}>{s.label}</option>)}
+                  </select>
+                )}
+              </div>
+              <button
+                disabled={busy}
+                onClick={() => updateSongStatus(song.status === "ready" ? "recruiting" : "ready", plannedMonth)}
+                className={song.status === "ready" ? "btn-outline" : "btn-primary"}
+              >
+                {song.status === "ready" ? "メンバー確定を取り消す" : "この予定でメンバーを確定する"}
+              </button>
+            </div>
           </section>
 
           {/* ライブ申請 */}
-          <section style={styles.section}>
-            <h2 style={styles.h2}>ライブ申請</h2>
-            <h3>申請履歴</h3>
-            {liveApps.length === 0 ? (
-              <p style={styles.empty}>まだ申請はありません</p>
-            ) : (
-              <ul style={styles.list}>
-                {liveApps.map((a) => {
-                  const ev = events.find((e) => e.id === a.live_event_id);
-                  return (
-                    <li key={a.id}>
-                      {ev?.name || a.live_event_id}
-                      {ev ? ` (${ev.lifecycle_status === "completed" ? "終了" : ev.lifecycle_status === "cancelled" ? "中止" : "開催前"})` : ""}
-                      {" "}— 状態: {a.status}
-                      {(a.status === "applied" || a.status === "approved") && ev?.lifecycle_status === "scheduled" && (
-                        <button disabled={busy} onClick={() => withdrawLiveApplication(a.id)} style={{ marginLeft: 8 }}>
-                          取り下げ
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <h3>新規申請</h3>
-            <div style={{ display: "flex", gap: 8 }}>
-              <select value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)} style={styles.input}>
-                <option value="">ライブを選択</option>
-                {events.filter(ev => ev.entry_status === "open" && ev.lifecycle_status === "scheduled").map((ev) => (
-                  <option key={ev.id} value={ev.id}>{ev.name} ({ev.event_date || "日付未定"})</option>
-                ))}
-              </select>
-              <button disabled={busy || !selectedEventId} onClick={submitLiveApplication}>申請</button>
+          <section className="card mt-lg">
+            <h3 className="h3">🎸 ライブ出演申請</h3>
+            <div className="mt-md">
+              {liveApps.map((a) => (
+                <div key={a.id} className="flex-row justify-between card mt-sm" style={{ padding: "8px 12px" }}>
+                  <span>{events.find(e => e.id === a.live_event_id)?.name || "イベント"}</span>
+                  <div className="flex-row">
+                    <span className="badge badge-primary">{a.status}</span>
+                    <button disabled={busy} onClick={() => withdrawLiveApplication(a.id)} className="btn-ghost" style={{ fontSize: "0.75rem" }}>取消</button>
+                  </div>
+                </div>
+              ))}
+              <div className="flex-row mt-md">
+                <select value={selectedEventId} onChange={(e) => setSelectedEventId(e.target.value)} style={{ flex: 1 }}>
+                  <option value="">申請するライブを選択</option>
+                  {events.filter(ev => ev.entry_status === "open").map((ev) => (
+                    <option key={ev.id} value={ev.id}>{ev.name}</option>
+                  ))}
+                </select>
+                <button disabled={busy || !selectedEventId} onClick={submitLiveApplication} className="btn-primary">申請する</button>
+              </div>
             </div>
           </section>
-        </>
-      )}
-
-      {/* チャット導線 */}
-      {song.chat_room_id && (
-        <section style={styles.section}>
-          <h2 style={styles.h2}>チャット</h2>
-          <button onClick={() => navigate(`/songs/${songId}/chat`)}>チャット画面を開く</button>
-        </section>
+        </div>
       )}
     </main>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: { width: "min(900px, calc(100vw - 32px))", margin: "32px auto", textAlign: "left" },
-  header: { marginTop: 16, borderBottom: "1px solid #e5e7eb", paddingBottom: 16 },
-  h1: { margin: "0 0 4px", fontSize: 26 },
-  h2: { fontSize: 18, marginTop: 0, marginBottom: 12 },
-  sub: { margin: "0 0 12px", color: "#4b5563" },
-  meta: { margin: "4px 0", color: "#374151", fontSize: 14 },
-  memo: { margin: "12px 0 0", color: "#111827" },
-  section: { marginTop: 24, padding: 16, border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff" },
-  list: { paddingLeft: 18, margin: 0 },
-  table: { width: "100%", borderCollapse: "collapse" },
-  input: { padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 14 },
-  empty: { color: "#6b7280" },
-  error: { color: "#dc2626" },
-  statusBadge: { display: "inline-block", border: "1px solid #bfdbfe", borderRadius: 999, padding: "2px 8px", color: "#1d4ed8", fontSize: 12 },
-};
