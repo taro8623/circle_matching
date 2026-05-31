@@ -11,6 +11,7 @@ type LiveEvent = {
   lifecycle_status: string;
   created_by: string;
   songs: LiveEventSong[];
+  participant_count: number;
   current_user_status: string;
   current_user_status_memo?: string | null;
   current_user_auto_labels: string[];
@@ -159,6 +160,7 @@ export default function LiveEvents() {
   const canRevertLiveToScheduled = userPermissions.includes("revert_live_to_scheduled");
   const canApproveLiveApplications = userPermissions.includes("approve_live_applications");
   const canRejectLiveApplications = userPermissions.includes("reject_live_applications");
+  const canViewLiveParticipants = userPermissions.includes("view_live_participants");
   const canManageAnyLive =
     canCreateLiveEvent ||
     canOpenLiveEntry ||
@@ -167,7 +169,8 @@ export default function LiveEvents() {
     canMarkLiveCancelled ||
     canRevertLiveToScheduled ||
     canApproveLiveApplications ||
-    canRejectLiveApplications;
+    canRejectLiveApplications ||
+    canViewLiveParticipants;
 
   const getStatusLabel = (status: string) =>
     STATUS_OPTIONS.find((opt) => opt.value === status)?.label || "誘ってほしい";
@@ -188,6 +191,10 @@ export default function LiveEvents() {
 
   const getPendingApplications = (eventId: string) =>
     (eventApplications[eventId] || []).filter((item) => item.status === "applied");
+
+  const openParticipants = (eventId: string) => {
+    navigate(`/circles/${circleId}/live-events/${eventId}/participants`);
+  };
 
   const renderEventSongList = (ev: LiveEvent, showManagementActions: boolean) => (
     <div style={{ marginTop: 14 }}>
@@ -306,10 +313,34 @@ export default function LiveEvents() {
                           日付: {ev.event_date || "未定"} / 受付: {ev.entry_status} / 状態: {LIFECYCLE_LABELS[ev.lifecycle_status] || ev.lifecycle_status}
                         </p>
                         <p style={styles.meta}>承認待ち申請: {pendingApplications.length} 件</p>
+                       <p style={styles.meta}>
+                         参加者:{" "}
+                         {canViewLiveParticipants ? (
+                           <button
+                             type="button"
+                             onClick={() => openParticipants(ev.id)}
+                             disabled={busy}
+                             style={styles.inlineLinkButton}
+                           >
+                             {ev.participant_count} 人
+                           </button>
+                         ) : (
+                           `${ev.participant_count} 人`
+                         )}
+                       </p>
                       </div>
                       <div style={styles.adminActions}>
-                        {ev.lifecycle_status === "scheduled" && (
-                          <>
+                       {canViewLiveParticipants && (
+                         <button
+                           onClick={() => openParticipants(ev.id)}
+                           disabled={busy}
+                           style={styles.secondaryButton}
+                         >
+                           参加者リスト
+                         </button>
+                       )}
+                       {ev.lifecycle_status === "scheduled" && (
+                         <>
                             {((ev.entry_status === "open" && canCloseLiveEntry) ||
                               (ev.entry_status !== "open" && canOpenLiveEntry)) && (
                               <button onClick={() => toggleEntryStatus(ev)} disabled={busy}>
@@ -484,6 +515,16 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#fff",
     color: "#0f172a",
     cursor: "pointer",
+  },
+  inlineLinkButton: {
+    padding: 0,
+    border: "none",
+    background: "transparent",
+    color: "#2563eb",
+    cursor: "pointer",
+    fontSize: 14,
+    fontWeight: 600,
+    textDecoration: "underline",
   },
   recruitingChip: {
     border: "1px solid #fecaca",

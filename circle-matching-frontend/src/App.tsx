@@ -11,6 +11,7 @@ import SongCreate from "./pages/SongCreate";
 import SongDetail from "./pages/SongDetail";
 import SongChat from "./pages/SongChat";
 import LiveEvents from "./pages/LiveEvents";
+import LiveEventParticipants from "./pages/LiveEventParticipants";
 import Notifications from "./pages/Notifications";
 import CircleMembers from "./pages/CircleMembers";
 import CircleParticipationHistory from "./pages/CircleParticipationHistory";
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/circles/:circleId" element={<ProtectedRoute><CircleDetail /></ProtectedRoute>} />
         <Route path="/circles/:circleId/songs/new" element={<ProtectedRoute><SongCreate /></ProtectedRoute>} />
         <Route path="/circles/:circleId/live-events" element={<ProtectedRoute><LiveEvents /></ProtectedRoute>} />
+        <Route path="/circles/:circleId/live-events/:eventId/participants" element={<ProtectedRoute><LiveEventParticipants /></ProtectedRoute>} />
         <Route path="/circles/:circleId/request-management" element={<ProtectedRoute><CircleRequestManagement /></ProtectedRoute>} />
         <Route path="/circles/:circleId/chats" element={<ProtectedRoute><CircleChats /></ProtectedRoute>} />
         <Route path="/circles/:circleId/bi" element={<ProtectedRoute><CircleBI /></ProtectedRoute>} />

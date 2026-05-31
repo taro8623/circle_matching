@@ -49,6 +49,16 @@ CIRCLE_PERMISSION_DEFINITIONS = [
         "description": "曲のライブ申請を却下できます。",
     },
     {
+        "key": "view_live_participants",
+        "label": "ライブ参加者リストを閲覧",
+        "description": "ライブごとの参加者一覧を確認できます。",
+    },
+    {
+        "key": "manage_live_payments",
+        "label": "ライブ参加費の決済状態を更新",
+        "description": "ライブ参加者の未決済・決済完了を手動で変更できます。",
+    },
+    {
         "key": "grant_circle_permissions",
         "label": "権限を付与",
         "description": "他メンバーに個別権限を付与できます。",
@@ -78,6 +88,8 @@ LIVE_MANAGEMENT_PERMISSION_KEYS = {
     "revert_live_to_scheduled",
     "approve_live_applications",
     "reject_live_applications",
+    "view_live_participants",
+    "manage_live_payments",
 }
 
 

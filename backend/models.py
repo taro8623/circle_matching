@@ -165,6 +165,35 @@ class LiveEvent(Base):
                                  cascade="all, delete-orphan")
     song_applications = relationship("SongLiveApplication", back_populates="live_event",
                                      cascade="all, delete-orphan")
+    participant_payments = relationship(
+        "LiveEventParticipantPayment",
+        back_populates="live_event",
+        cascade="all, delete-orphan",
+    )
+
+
+class LiveEventParticipantPayment(Base):
+    __tablename__ = "live_event_participant_payments"
+    __table_args__ = (
+        UniqueConstraint(
+            "live_event_id",
+            "participant_type",
+            "participant_key",
+            name="uq_live_event_participant_payments_event_participant",
+        ),
+        Index("ix_live_event_participant_payments_event", "live_event_id"),
+    )
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    live_event_id = Column(UUID(as_uuid=True), ForeignKey("live_events.id", ondelete="CASCADE"), nullable=False)
+    participant_type = Column(String, nullable=False)  # 'circle_member' / 'external_member'
+    participant_key = Column(String, nullable=False)   # user_id string or external member name
+    payment_status = Column(String, nullable=False, default="unpaid")
+    updated_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    live_event = relationship("LiveEvent", back_populates="participant_payments")
+    updater = relationship("User")
 
 
 class UserLiveEventStatus(Base):
